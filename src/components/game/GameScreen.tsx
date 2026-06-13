@@ -94,18 +94,18 @@ export function GameScreen() {
 
       {/* ─── BATTLE ─── */}
       {phase === 'battle' && (
-        <>
+        <div className="flex flex-col min-h-screen">
           {/* Top: Enemy */}
           <div className="flex-shrink-0 pt-6 sm:pt-10 pb-2">
             <EnemyDisplay />
           </div>
 
-          {/* Middle: Player HUD + End Turn */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
+          {/* Middle: Player HUD + End Turn — must clear the fixed hand */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 pb-48 sm:pb-52">
             <PlayerHUD />
 
             {/* Combat log */}
-            <div className="w-full max-w-md max-h-24 overflow-y-auto">
+            <div className="w-full max-w-md max-h-20 overflow-y-auto">
               {log.slice(0, 4).map((entry, i) => (
                 <p key={i} className={`text-center text-xs ${i === 0 ? 'text-white/60' : 'text-white/25'}`}>
                   {entry}
@@ -113,21 +113,21 @@ export function GameScreen() {
               ))}
             </div>
 
-            {/* End Turn Button */}
+            {/* End Turn Button — above the hand, with high z-index */}
             <motion.button
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={endTurn}
               disabled={isAnimating}
-              className="px-8 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white/90 text-sm font-semibold rounded-xl border border-white/10 hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+              className="relative z-30 px-8 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white/90 text-sm font-semibold rounded-xl border border-white/10 hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-black/40"
             >
               Terminar Turno
             </motion.button>
           </div>
 
-          {/* Bottom: Hand */}
+          {/* Bottom: Hand (fixed overlay) */}
           <HandDisplay />
-        </>
+        </div>
       )}
 
       {/* ─── REWARD ─── */}

@@ -24,6 +24,7 @@ export function GameScreen() {
   const pickedRewards = useGameStore(s => s.pickedRewards);
   const log = useGameStore(s => s.log);
   const player = useGameStore(s => s.player);
+  const deck = useGameStore(s => s.deck);
   const rewardCards = useGameStore(s => s.rewardCards);
   const encounter = useGameStore(s => s.encounter);
   const pendingEvolution = useGameStore(s => s.pendingEvolution);
@@ -183,7 +184,7 @@ export function GameScreen() {
             <div className="flex justify-center gap-4 mb-5">
               <span className="text-sm text-white/60">❤️ {Math.max(0, player.hp)}/{player.maxHp}</span>
               <span className="text-sm text-yellow-300 font-medium">🪙 {player.gold}</span>
-              <span className="text-sm text-white/60">🃏 {player.deck.length} cartas</span>
+              <span className="text-sm text-white/60">🃏 {deck.length} cartas</span>
             </div>
 
             {/* Card picker for remove/upgrade from events */}
@@ -239,7 +240,7 @@ export function GameScreen() {
             <h2 className="text-5xl font-bold bg-gradient-to-b from-amber-200 via-amber-400 to-orange-600 bg-clip-text text-transparent">¡Leyenda!</h2>
             <p className="text-white/50 mt-3 text-sm max-w-md mx-auto">
               Derrotaste al jefe final como {getEvolutionNode(player.classPath).name}.<br/>
-              Oro final: {player.gold}g · Mazo: {player.deck.length} cartas
+              Oro final: {player.gold}g · Mazo: {deck.length} cartas
             </p>
           </motion.div>
           <motion.button initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} onClick={startNewGame} className="px-10 py-3.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30">

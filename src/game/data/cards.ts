@@ -388,15 +388,30 @@ export function getAvailableCards(classPath: string): CardDef[] {
   return ALL_CARDS.filter(c => lineage.includes(c.classPath));
 }
 
-/** Get reward pool: cards from player's lineage they don't already own */
-export function getRewardPool(classPath: string, ownedDefIds: Set<string>): CardDef[] {
+/** Get reward pool: cards from player's lineage with < 2 copies (allows duplicates) */
+export function getRewardPool(classPath: string, deck: { defId: string; upgraded: boolean }[]): CardDef[] {
   const available = getAvailableCards(classPath);
-  return available.filter(c => !ownedDefIds.has(c.id) && c.rarity !== 'curse');
+  // Count copies per defId
+  const copyCount = new Map<string, number>();
+  for (const card of deck) {
+    copyCount.set(card.defId, (copyCount.get(card.defId) || 0) + 1);
+  }
+  return available.filter(c => (copyCount.get(c.id) || 0) < 2 && c.rarity !== 'curse' && c.rarity !== 'starter');
 }
 
-/** Get random card from class lineage for shop/event */
-export function getRandomClassCard(classPath: string, excludeIds?: Set<string>): CardDef | null {
-  const pool = getAvailableCards(classPath).filter(c => c.rarity !== 'curse' && c.rarity !== 'starter' && (!excludeIds || !excludeIds.has(c.id)));
+/** Get random card from class lineage for shop/event (respects max 2 copies) */
+export function getRandomClassCard(classPath: string, deck?: { defId: string; upgraded: boolean }[]): CardDef | null {
+  const copyCount = new Map<string, number>();
+  if (deck) {
+    for (const card of deck) {
+      copyCount.set(card.defId, (copyCount.get(card.defId) || 0) + 1);
+    }
+  }
+  const pool = getAvailableCards(classPath).filter(c => {
+    if (c.rarity === 'curse' || c.rarity === 'starter') return false;
+    const copies = copyCount.get(c.id) || 0;
+    return copies < 2;
+  });
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }

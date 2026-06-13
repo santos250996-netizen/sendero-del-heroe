@@ -11,6 +11,10 @@ interface GameStore extends GameState {
   isAnimating: boolean;
   setIsAnimating: (v: boolean) => void;
 
+  // Deck viewer
+  viewingDeck: boolean;
+  setViewingDeck: (v: boolean) => void;
+
   // Map
   selectNode: (nodeId: string) => void;
   enterNode: () => void;
@@ -62,7 +66,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   shopItems: [],
   nextEncounterDamageBonus: 0,
   isAnimating: false,
+  viewingDeck: false,
 
+  setViewingDeck: (v: boolean) => set({ viewingDeck: v }),
   setIsAnimating: (v) => set({ isAnimating: v }),
 
   // ─── Core ────────────────────────────────────────────

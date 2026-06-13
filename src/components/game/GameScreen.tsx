@@ -13,6 +13,7 @@ import { ShopScreen } from './ShopScreen';
 import { EVOLUTION_TREE } from '@/game/data/evolutions';
 import { getEvolutionNode } from '@/game/data/evolutions';
 import { DeckCardPicker } from './CardDisplay';
+import { DeckViewer } from './DeckViewer';
 
 export function GameScreen() {
   const phase = useGameStore(s => s.phase);
@@ -184,7 +185,7 @@ export function GameScreen() {
             <div className="flex justify-center gap-4 mb-5">
               <span className="text-sm text-white/60">❤️ {Math.max(0, player.hp)}/{player.maxHp}</span>
               <span className="text-sm text-yellow-300 font-medium">🪙 {player.gold}</span>
-              <span className="text-sm text-white/60">🃏 {deck.length} cartas</span>
+              <span className="text-sm text-white/60">🃏 {deck.length} cartas{deck.length > 15 ? <span className="text-orange-400 ml-1">⚠</span> : ''}</span>
             </div>
 
             {/* Card picker for remove/upgrade from events */}
@@ -248,6 +249,8 @@ export function GameScreen() {
           </motion.button>
         </div>
       )}
+      {/* ─── DECK VIEWER (overlay) ─── */}
+      <DeckViewer />
     </div>
   );
 }

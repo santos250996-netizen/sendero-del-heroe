@@ -84,6 +84,8 @@ export function MapDisplay() {
   const map = useGameStore(s => s.map);
   const phase = useGameStore(s => s.phase);
   const currentNodeId = useGameStore(s => s.currentNodeId);
+  const setViewingDeck = useGameStore(s => s.setViewingDeck);
+  const deck = useGameStore(s => s.deck);
 
   if (!map || phase !== 'map') return null;
 
@@ -97,9 +99,20 @@ export function MapDisplay() {
     <div className="flex-1 flex flex-col items-center px-4 pb-6">
       <PlayerHUD />
 
-      <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mt-4 mb-1">
-        Mapa del Sendero
-      </h2>
+      <div className="flex items-center justify-between w-full max-w-xs mb-1">
+        <h2 className="text-2xl sm:text-3xl font-bold text-amber-300">
+          Mapa del Sendero
+        </h2>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setViewingDeck(true)}
+          className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-lg text-white/70 text-xs hover:bg-white/20 hover:border-white/30 transition-all flex items-center gap-1.5"
+        >
+          🃏 {deck.length}
+          {deck.length > 15 && <span className="text-orange-400">⚠</span>}
+        </motion.button>
+      </div>
       <p className="text-white/40 text-xs mb-4">
         Selecciona un nodo y presiona IR para entrar
       </p>

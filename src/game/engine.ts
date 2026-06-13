@@ -165,6 +165,12 @@ export function startTurn(state: GameState): GameState {
     if (passive.value > 0) logEntries.push(`Pasiva: +${passive.value} robo`);
   }
 
+  // Deck size penalty: if deck > 15 cards, draw 1 less
+  if (state.deck.length > 15) {
+    drawCount = Math.max(1, drawCount - 1);
+    logEntries.push('Mazo pesado: -1 robo');
+  }
+
   // Handle vacuum curse: if player draws a vacuum card, they lose 1 energy
   let s: GameState = { ...state, turn, player: p, log: [...logEntries, ...state.log] };
   s = drawCards(s, drawCount);
@@ -446,8 +452,7 @@ export function handleVictory(state: GameState): GameState {
   const choiceIds: ClassPath[] = choiceNodes.map(n => n.id);
 
   // Generate reward cards
-  const ownedDefIds = new Set(state.deck.map(c => c.defId));
-  const rewardPool = getRewardPool(state.player.classPath, ownedDefIds);
+  const rewardPool = getRewardPool(state.player.classPath, state.deck);
   const rewardCards = generateRewardCards(rewardPool, 3);
 
   // Reset next encounter damage bonus
@@ -476,7 +481,8 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
   let newDeck = state.deck.map(card => {
     const newDefId = transformCard(card.defId, classPath);
     if (newDefId) {
-      return { ...card, defId: newDefId };
+      // Starter cards get FREE upgrade on evolution
+      return { ...card, defId: newDefId, upgraded: true };
     }
     return card;
   });
@@ -573,6 +579,13 @@ function applyRestHeal(state: GameState): GameState {
 export function removeCardFromDeck(state: GameState, cardUid: string): GameState {
   const card = state.deck.find(c => c.uid === cardUid);
   if (!card) return state;
+  // Minimum deck size: 3 cards
+  if (state.deck.length <= 3) {
+    return {
+      ...state,
+      log: ['Mínimo 3 cartas en el mazo', ...state.log],
+    };
+  }
   const def = getCardDef(card.defId);
   const nextPhase = (state.phase === 'event_result' || state.phase === 'shop') ? state.phase : 'map';
   return {
@@ -611,13 +624,12 @@ export function upgradeCardInDeck(state: GameState, cardUid: string): GameState 
 // ─── SHOP ─────────────────────────────────────────────────
 
 function enterShop(state: GameState): GameState {
-  const ownedDefIds = new Set(state.deck.map(c => c.defId));
-
-  // Generate shop cards based on player's class
+  // Generate shop cards based on player's class (respects max 2 copies)
   const shopCards: ShopItem[] = [];
+  const shopCardIds = new Set<string>();
   for (let i = 0; i < 3; i++) {
-    const card = getRandomClassCard(state.player.classPath, ownedDefIds);
-    if (card) {
+    const card = getRandomClassCard(state.player.classPath, state.deck);
+    if (card && !shopCardIds.has(card.id)) {
       const cost = card.rarity === 'rare' ? 100 : card.rarity === 'common' ? 60 : 80;
       shopCards.push({
         id: `shop_card_${i}`,
@@ -626,7 +638,7 @@ function enterShop(state: GameState): GameState {
         cost,
         sold: false,
       });
-      ownedDefIds.add(card.id);
+      shopCardIds.add(card.id);
     }
   }
 
@@ -748,7 +760,20 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
   }
 
   // If option allows removing a card, go to remove mode
+  // But check if deck only has curses — can't remove those at events
   if (option.canRemoveCard) {
+    const hasNonCurse = newDeck.some(c => getCardDef(c.defId).rarity !== 'curse');
+    if (!hasNonCurse) {
+      // Only curses in deck, can't remove at event — go straight to continue
+      return {
+        ...state,
+        phase: 'event_result',
+        player: p,
+        deck: newDeck,
+        eventOutcome: option,
+        log: [...logEntries, 'Solo quedan maldiciones — ve a descanso para eliminarlas', ...state.log],
+      };
+    }
     return {
       ...state,
       phase: 'event_result',

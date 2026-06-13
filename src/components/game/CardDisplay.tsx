@@ -264,6 +264,25 @@ export function DeckCardPicker({ mode }: { mode: 'remove' | 'upgrade' }) {
                     {def.name}{uc.upgraded && <span className="text-cyan-400">+</span>}
                   </p>
                   <p className="text-white/40 text-[9px] truncate">{def.description}</p>
+                  {/* Upgrade preview: show current vs upgraded stats */}
+                  {mode === 'upgrade' && canUpgrade && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-0.5">
+                        {def.damage && <span className="text-[8px] text-red-300/60">⚔{def.damage}</span>}
+                        {def.block && <span className="text-[8px] text-amber-300/60">🛡{def.block}</span>}
+                        {def.heal && <span className="text-[8px] text-green-300/60">❤{def.heal}</span>}
+                        {def.drawCards && <span className="text-[8px] text-blue-300/60">🃏{def.drawCards}</span>}
+                      </div>
+                      <span className="text-cyan-400/50 text-[8px]">→</span>
+                      <div className="flex items-center gap-0.5">
+                        {(def.damage || 0) + (def.upgradeBonus?.bonusDamage || 0) > 0 && <span className="text-[8px] text-red-300">⚔{(def.damage || 0) + (def.upgradeBonus?.bonusDamage || 0)}</span>}
+                        {(def.block || 0) + (def.upgradeBonus?.bonusBlock || 0) > 0 && <span className="text-[8px] text-amber-300">🛡{(def.block || 0) + (def.upgradeBonus?.bonusBlock || 0)}</span>}
+                        {(def.heal || 0) + (def.upgradeBonus?.bonusHeal || 0) > 0 && <span className="text-[8px] text-green-300">❤{(def.heal || 0) + (def.upgradeBonus?.bonusHeal || 0)}</span>}
+                        {(def.drawCards || 0) + (def.upgradeBonus?.bonusDraw || 0) > 0 && <span className="text-[8px] text-blue-300">🃏{(def.drawCards || 0) + (def.upgradeBonus?.bonusDraw || 0)}</span>}
+                        {(def.upgradeBonus?.costReduction || 0) > 0 && <span className="text-[8px] text-cyan-300">⚡{Math.max(0, def.cost - 1)}</span>}
+                      </div>
+                    </div>
+                  )}
                   {mode === 'upgrade' && canUpgrade && (
                     <p className="text-cyan-400/70 text-[9px] mt-0.5">Click para mejorar</p>
                   )}

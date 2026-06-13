@@ -1,15 +1,8 @@
 'use client';
 
 import { useGameStore } from '@/store/gameStore';
-import { getCardDef } from '@/game/data/cards';
+import { getCardDef, CARD_EMOJI, CLASS_CARD_BORDER } from '@/game/data/cards';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const rarityColors: Record<string, string> = {
-  starter: 'border-stone-400/30 bg-stone-900/60',
-  common: 'border-emerald-400/30 bg-emerald-950/40',
-  rare: 'border-blue-400/30 bg-blue-950/40',
-  legendary: 'border-amber-400/50 bg-amber-950/50',
-};
 
 const rarityGlow: Record<string, string> = {
   starter: '',
@@ -54,134 +47,62 @@ export function CardInHand({ cardUid }: { cardUid: string }) {
       whileHover={canPlay ? { y: -16, scale: 1.05 } : {}}
       whileTap={canPlay ? { scale: 0.95 } : {}}
       onClick={() => canPlay && playCard(cardUid)}
-      className={`relative flex-shrink-0 w-[120px] sm:w-[140px] h-[170px] sm:h-[195px] rounded-xl border cursor-pointer transition-colors select-none overflow-hidden ${
-        rarityColors[def.rarity]
+      className={`relative flex-shrink-0 w-[115px] sm:w-[135px] h-[165px] sm:h-[190px] rounded-xl border cursor-pointer transition-colors select-none overflow-hidden ${
+        CLASS_CARD_BORDER[def.classPath] || CLASS_CARD_BORDER.vagabundo
       } ${
         canPlay
           ? 'hover:border-white/40 hover:brightness-110 active:brightness-90'
           : 'opacity-40 cursor-not-allowed grayscale-[30%]'
       } ${rarityGlow[def.rarity]}`}
     >
-      {/* Cost gem */}
-      <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/30">
+      <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-blue-500/30">
         {def.cost}
       </div>
-
-      {/* Target icon */}
       <div className="absolute top-2 right-2 text-sm opacity-60">
         {targetIcons[def.target]}
       </div>
-
-      {/* Rarity label */}
-      <div className="absolute top-9 left-2">
-        <span className="text-[8px] tracking-wider text-white/30 uppercase font-medium">
-          {rarityLabels[def.rarity]}
-        </span>
-      </div>
-
-      {/* Card content */}
-      <div className="flex flex-col items-center justify-center h-full px-3 pt-10 pb-3 text-center">
-        {/* Art placeholder */}
-        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg mb-2 bg-black/40 border border-white/10 flex items-center justify-center text-2xl`}>
-          {getCardEmoji(def.id)}
+      <div className="flex flex-col items-center justify-center h-full px-2 pt-8 pb-2 text-center">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg mb-1.5 bg-black/40 border border-white/10 flex items-center justify-center text-2xl">
+          {CARD_EMOJI[def.id] || '🃏'}
         </div>
-
-        {/* Name */}
-        <h3 className="text-white/90 text-xs sm:text-sm font-semibold leading-tight mb-1.5 px-1 line-clamp-2">
+        <h3 className="text-white/90 text-[11px] sm:text-xs font-semibold leading-tight mb-1 px-1 line-clamp-2">
           {def.name}
         </h3>
-
-        {/* Description */}
-        <p className="text-white/50 text-[10px] sm:text-xs leading-snug px-1 line-clamp-3 mb-2">
+        <p className="text-white/40 text-[9px] sm:text-[10px] leading-snug px-1 line-clamp-2 mb-1.5">
           {def.description}
         </p>
-
-        {/* Stats */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-center">
-          {def.damage && (
-            <span className="text-[10px] text-red-300/80 bg-red-950/50 px-1.5 py-0.5 rounded">
-              ⚔{def.damage}
-            </span>
-          )}
-          {def.heal && (
-            <span className="text-[10px] text-green-300/80 bg-green-950/50 px-1.5 py-0.5 rounded">
-              ❤{def.heal}
-            </span>
-          )}
-          {def.block && (
-            <span className="text-[10px] text-amber-300/80 bg-amber-950/50 px-1.5 py-0.5 rounded">
-              🛡{def.block}
-            </span>
-          )}
-          {def.strengthBuff && (
-            <span className="text-[10px] text-orange-300/80 bg-orange-950/50 px-1.5 py-0.5 rounded">
-              💪+{def.strengthBuff}
-            </span>
-          )}
-          {def.drawCards && (
-            <span className="text-[10px] text-blue-300/80 bg-blue-950/50 px-1.5 py-0.5 rounded">
-              🃏+{def.drawCards}
-            </span>
-          )}
-          {def.armorPierce && (
-            <span className="text-[10px] text-purple-300/80 bg-purple-950/50 px-1.5 py-0.5 rounded">
-              ✨Perfora
-            </span>
-          )}
-          {def.aoeDamage && (
-            <span className="text-[10px] text-red-300/80 bg-red-950/50 px-1.5 py-0.5 rounded">
-              💥{def.aoeDamage}
-            </span>
-          )}
-          {def.nextAttackBuff && def.target === 'passive' && (
-            <span className="text-[10px] text-yellow-300/80 bg-yellow-950/50 px-1.5 py-0.5 rounded">
-              🎌+{def.nextAttackBuff}
-            </span>
-          )}
-          {def.damageMultiplier && def.id !== 'golpe_leyenda' && (
-            <span className="text-[10px] text-rose-300/80 bg-rose-950/50 px-1.5 py-0.5 rounded">
-              📈Escala
-            </span>
-          )}
-          {def.id === 'golpe_leyenda' && (
-            <span className="text-[10px] text-amber-300/80 bg-amber-950/50 px-1.5 py-0.5 rounded">
-              👑Fuerza×3
-            </span>
-          )}
+        <div className="flex items-center gap-1 flex-wrap justify-center">
+          {def.damage && <span className="text-[9px] text-red-300/80 bg-red-950/50 px-1 py-0.5 rounded">⚔{def.damage}</span>}
+          {def.heal && <span className="text-[9px] text-green-300/80 bg-green-950/50 px-1 py-0.5 rounded">❤{def.heal}</span>}
+          {def.block && <span className="text-[9px] text-amber-300/80 bg-amber-950/50 px-1 py-0.5 rounded">🛡{def.block}</span>}
+          {def.strengthBuff && <span className="text-[9px] text-orange-300/80 bg-orange-950/50 px-1 py-0.5 rounded">💪+{def.strengthBuff}</span>}
+          {def.drawCards && <span className="text-[9px] text-blue-300/80 bg-blue-950/50 px-1 py-0.5 rounded">🃏+{def.drawCards}</span>}
+          {def.aoeDamage && <span className="text-[9px] text-red-300/80 bg-red-950/50 px-1 py-0.5 rounded">💥{def.aoeDamage}</span>}
+          {def.burn && <span className="text-[9px] text-orange-300/80 bg-orange-950/50 px-1 py-0.5 rounded">🔥{def.burn}</span>}
+          {def.poison && <span className="text-[9px] text-green-300/80 bg-green-950/50 px-1 py-0.5 rounded">☠{def.poison}</span>}
+          {def.freeze && <span className="text-[9px] text-cyan-300/80 bg-cyan-950/50 px-1 py-0.5 rounded">❄{def.freeze}</span>}
+          {def.selfDamage && <span className="text-[9px] text-rose-300/80 bg-rose-950/50 px-1 py-0.5 rounded">🩸-{def.selfDamage}</span>}
+          {def.energyGain && <span className="text-[9px] text-cyan-300/80 bg-cyan-950/50 px-1 py-0.5 rounded">⚡+{def.energyGain}</span>}
+          {def.attackBuffTurn && <span className="text-[9px] text-yellow-300/80 bg-yellow-950/50 px-1 py-0.5 rounded">🎼+{def.attackBuffTurn}</span>}
+          {def.executeThreshold && <span className="text-[9px] text-red-300/80 bg-red-950/50 px-1 py-0.5 rounded">💀E</span>}
+          {def.weaken && <span className="text-[9px] text-purple-300/80 bg-purple-950/50 px-1 py-0.5 rounded">👁-{def.weaken}</span>}
         </div>
       </div>
     </motion.div>
   );
 }
 
-function getCardEmoji(cardId: string): string {
-  const map: Record<string, string> = {
-    golpe_basico: '👊',
-    escudo_ramas: '🌿',
-    grito_guerra: '📯',
-    meditacion: '🧘',
-    espada_rota: '🗡️',
-    fuerza_salvaje: '🔥',
-    bandera_batalla: '🏴',
-    resiliencia: '🛡️',
-    furia_exilio: '⚡',
-    golpe_leyenda: '👑',
-  };
-  return map[cardId] || '🃏';
-}
-
 export function HandDisplay() {
   const hand = useGameStore(s => s.hand);
   const phase = useGameStore(s => s.phase);
-
   if (phase !== 'battle') return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20">
-      {/* Hand area */}
-      <div className="flex justify-center gap-2 sm:gap-3 px-3 sm:px-6 pb-4 sm:pb-6 pt-8 overflow-x-auto"
+      <div
+        className="flex justify-center gap-2 sm:gap-3 px-3 sm:px-6 pb-4 sm:pb-6 pt-8 overflow-x-auto"
         style={{
-          background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
           maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
         }}
       >
@@ -195,13 +116,12 @@ export function HandDisplay() {
   );
 }
 
-// Reward card (bigger, clickable for selection)
+// ─── Reward Card ───────────────────────────────────────────
+
 export function RewardCard({ cardUid, selected }: { cardUid: string; selected: boolean }) {
   const toggleRewardCard = useGameStore(s => s.toggleRewardCard);
-
   const card = useGameStore(s => s.rewardCards.find(c => c.uid === cardUid));
   if (!card) return null;
-
   const def = getCardDef(card.defId);
 
   return (
@@ -211,86 +131,39 @@ export function RewardCard({ cardUid, selected }: { cardUid: string; selected: b
       whileHover={{ scale: 1.05, y: -4 }}
       whileTap={{ scale: 0.97 }}
       onClick={() => toggleRewardCard(cardUid)}
-      className={`relative flex-shrink-0 w-[160px] sm:w-[180px] h-[230px] sm:h-[260px] rounded-xl border-2 cursor-pointer select-none overflow-hidden transition-all duration-200 ${
+      className={`relative flex-shrink-0 w-[155px] sm:w-[175px] h-[225px] sm:h-[250px] rounded-xl border-2 cursor-pointer select-none overflow-hidden transition-all duration-200 ${
         selected
           ? 'border-emerald-400/80 bg-emerald-950/50 shadow-lg shadow-emerald-500/30'
-          : rarityColors[def.rarity]
+          : CLASS_CARD_BORDER[def.classPath] || CLASS_CARD_BORDER.vagabundo
       } hover:brightness-110`}
     >
-      {/* Selected checkmark */}
       {selected && (
-        <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold z-10 shadow-lg">
-          ✓
-        </div>
+        <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold z-10 shadow-lg">✓</div>
       )}
-
-      {/* Cost gem */}
-      <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-base font-bold shadow-lg shadow-blue-500/30">
+      <div className="absolute top-3 left-3 w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/30">
         {def.cost}
       </div>
-
-      {/* Target icon */}
-      <div className="absolute top-3 right-3 text-base opacity-60">
-        {targetIcons[def.target]}
-      </div>
-
-      {/* Rarity label */}
-      <div className="absolute top-11 left-3">
-        <span className="text-[9px] tracking-wider text-white/30 uppercase font-medium">
-          {rarityLabels[def.rarity]}
-        </span>
-      </div>
-
-      {/* Card content */}
-      <div className="flex flex-col items-center justify-center h-full px-4 pt-12 pb-4 text-center">
-        <div className="w-20 h-20 rounded-lg mb-3 bg-black/40 border border-white/10 flex items-center justify-center text-4xl">
-          {getCardEmoji(def.id)}
+      <div className="flex flex-col items-center justify-center h-full px-4 pt-10 pb-4 text-center">
+        <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-lg mb-2.5 bg-black/40 border border-white/10 flex items-center justify-center text-3xl sm:text-4xl">
+          {CARD_EMOJI[def.id] || '🃏'}
         </div>
-
-        <h3 className="text-white/90 text-base font-semibold leading-tight mb-2 px-1">
-          {def.name}
-        </h3>
-
-        <p className="text-white/50 text-xs leading-snug px-1 mb-3">
-          {def.description}
-        </p>
-
-        <div className="flex items-center gap-1.5 flex-wrap justify-center">
-          {def.damage && (
-            <span className="text-[11px] text-red-300/80 bg-red-950/50 px-2 py-0.5 rounded">
-              ⚔{def.damage}
-            </span>
-          )}
-          {def.heal && (
-            <span className="text-[11px] text-green-300/80 bg-green-950/50 px-2 py-0.5 rounded">
-              ❤{def.heal}
-            </span>
-          )}
-          {def.block && (
-            <span className="text-[11px] text-amber-300/80 bg-amber-950/50 px-2 py-0.5 rounded">
-              🛡{def.block}
-            </span>
-          )}
-          {def.strengthBuff && (
-            <span className="text-[11px] text-orange-300/80 bg-orange-950/50 px-2 py-0.5 rounded">
-              💪+{def.strengthBuff}
-            </span>
-          )}
-          {def.drawCards && (
-            <span className="text-[11px] text-blue-300/80 bg-blue-950/50 px-2 py-0.5 rounded">
-              🃏+{def.drawCards}
-            </span>
-          )}
-          {def.armorPierce && (
-            <span className="text-[11px] text-purple-300/80 bg-purple-950/50 px-2 py-0.5 rounded">
-              ✨Perfora
-            </span>
-          )}
-          {def.aoeDamage && (
-            <span className="text-[11px] text-red-300/80 bg-red-950/50 px-2 py-0.5 rounded">
-              💥{def.aoeDamage}
-            </span>
-          )}
+        <h3 className="text-white/90 text-sm sm:text-base font-semibold leading-tight mb-1.5 px-1">{def.name}</h3>
+        <p className="text-white/50 text-[11px] sm:text-xs leading-snug px-1 mb-2.5">{def.description}</p>
+        <div className="flex items-center gap-1 flex-wrap justify-center">
+          {def.damage && <span className="text-[10px] text-red-300/80 bg-red-950/50 px-1.5 py-0.5 rounded">⚔{def.damage}</span>}
+          {def.heal && <span className="text-[10px] text-green-300/80 bg-green-950/50 px-1.5 py-0.5 rounded">❤{def.heal}</span>}
+          {def.block && <span className="text-[10px] text-amber-300/80 bg-amber-950/50 px-1.5 py-0.5 rounded">🛡{def.block}</span>}
+          {def.strengthBuff && <span className="text-[10px] text-orange-300/80 bg-orange-950/50 px-1.5 py-0.5 rounded">💪+{def.strengthBuff}</span>}
+          {def.drawCards && <span className="text-[10px] text-blue-300/80 bg-blue-950/50 px-1.5 py-0.5 rounded">🃏+{def.drawCards}</span>}
+          {def.burn && <span className="text-[10px] text-orange-300/80 bg-orange-950/50 px-1.5 py-0.5 rounded">🔥{def.burn}</span>}
+          {def.poison && <span className="text-[10px] text-green-300/80 bg-green-950/50 px-1.5 py-0.5 rounded">☠{def.poison}</span>}
+          {def.aoeDamage && <span className="text-[10px] text-red-300/80 bg-red-950/50 px-1.5 py-0.5 rounded">💥{def.aoeDamage}</span>}
+          {def.selfDamage && <span className="text-[10px] text-rose-300/80 bg-rose-950/50 px-1.5 py-0.5 rounded">🩸-{def.selfDamage}</span>}
+          {def.energyGain && <span className="text-[10px] text-cyan-300/80 bg-cyan-950/50 px-1.5 py-0.5 rounded">⚡+{def.energyGain}</span>}
+          {def.attackBuffTurn && <span className="text-[10px] text-yellow-300/80 bg-yellow-950/50 px-1.5 py-0.5 rounded">🎼+{def.attackBuffTurn}</span>}
+          {def.executeThreshold && <span className="text-[10px] text-red-300/80 bg-red-950/50 px-1.5 py-0.5 rounded">💀E</span>}
+          {def.weaken && <span className="text-[10px] text-purple-300/80 bg-purple-950/50 px-1.5 py-0.5 rounded">👁-{def.weaken}</span>}
+          {def.freeze && <span className="text-[10px] text-cyan-300/80 bg-cyan-950/50 px-1.5 py-0.5 rounded">❄{def.freeze}</span>}
         </div>
       </div>
     </motion.div>

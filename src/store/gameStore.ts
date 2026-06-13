@@ -1,90 +1,62 @@
 import { create } from 'zustand';
-import {
-  type GameState,
-  type CardInstance,
-  type GamePhase,
-} from '@/game/types';
+import { type GameState, type ClassPath } from '@/game/types';
 import * as engine from '@/game/engine';
 import { getCardDef } from '@/game/data/cards';
 
 interface GameStore extends GameState {
-  // Actions
   startNewGame: () => void;
   playCard: (cardUid: string) => void;
   endTurn: () => void;
   toggleRewardCard: (cardUid: string) => void;
-  skipRewards: () => void;
   confirmRewards: () => void;
-  proceedAfterEvolution: () => void;
-  // Helpers
-  getCardDef: (id: string) => ReturnType<typeof getCardDef>;
+  skipRewards: () => void;
+  chooseEvolution: (classPath: ClassPath) => void;
   isAnimating: boolean;
   setIsAnimating: (v: boolean) => void;
-  pickedRewards: string[]; // UIDs of cards the player selected
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
-  // Initial state (menu)
   phase: 'menu',
   player: {
-    hp: 0,
-    maxHp: 0,
-    energy: 0,
-    maxEnergy: 0,
-    drawPerTurn: 0,
-    strength: 0,
-    xp: 0,
-    evolutionTier: 0,
-    nextAttackBuff: 0,
+    hp: 0, maxHp: 0, energy: 0, maxEnergy: 0,
+    drawPerTurn: 0, strength: 0, xp: 0,
+    evolutionTier: 0, classPath: 'vagabundo',
+    nextAttackBuff: 0, dodgeCount: 0, attackBuffTurn: 0,
   },
-  deck: [],
-  hand: [],
-  discard: [],
-  enemy: null,
-  encounter: 0,
-  turn: 0,
-  log: [],
-  rewardCards: [],
-  pendingEvolution: false,
+  deck: [], hand: [], discard: [],
+  enemy: null, encounter: 0, turn: 0,
+  log: [], rewardCards: [], pendingEvolution: false,
+  evolutionChoices: [], pickedRewards: [],
   isAnimating: false,
-  pickedRewards: [],
 
   setIsAnimating: (v) => set({ isAnimating: v }),
 
-  getCardDef: (id) => getCardDef(id),
-
   startNewGame: () => {
     const state = engine.createNewGame();
-    set({
-      ...state,
-      phase: 'battle',
-    });
+    set({ ...state });
   },
 
   playCard: (cardUid: string) => {
     const state = get();
     if (state.phase !== 'battle' || state.isAnimating) return;
-
     const card = state.hand.find(c => c.uid === cardUid);
     if (!card) return;
     const def = getCardDef(card.defId);
-    if (state.player.energy < def.cost) return;
+    if (def && state.player.energy < def.cost) return;
+    if (!def) return;
 
     set({ isAnimating: true });
-
     let newState = engine.playCard(state, cardUid);
     set(newState);
 
-    // Check combat end after a short delay
     setTimeout(() => {
-      const currentState = get();
-      const result = engine.checkCombatEnd(currentState);
-
+      const cs = get();
+      const result = engine.checkCombatEnd(cs);
       if (result === 'enemy_dead') {
-        if (engine.checkFinalVictory(currentState)) {
+        if (engine.checkFinalVictory(cs)) {
           set({ phase: 'victory', isAnimating: false });
         } else {
-          const victoryState = engine.handleVictory(currentState);
+          const victoryState = engine.handleVictory(cs);
           set({ ...victoryState, isAnimating: false });
         }
       } else if (result === 'player_dead') {
@@ -98,29 +70,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
   endTurn: () => {
     const state = get();
     if (state.phase !== 'battle' || state.isAnimating) return;
-
     set({ isAnimating: true });
 
-    // Discard hand
-    const afterDiscard: GameState = {
-      ...state,
-      hand: [],
-      discard: [...state.discard, ...state.hand],
-    };
-
+    const afterDiscard: GameState = { ...state, hand: [], discard: [...state.discard, ...state.hand] };
     let newState = engine.endPlayerTurn(afterDiscard);
     set(newState);
 
-    // Check if player died from enemy attack
     setTimeout(() => {
-      const currentState = get();
-      const result = engine.checkCombatEnd(currentState);
-
-      if (result === 'player_dead') {
+      const cs = get();
+      // Check if enemy died from DOTs during enemy turn
+      const result = engine.checkCombatEnd(cs);
+      if (result === 'enemy_dead') {
+        if (engine.checkFinalVictory(cs)) {
+          set({ phase: 'victory', isAnimating: false });
+        } else {
+          const victoryState = engine.handleVictory(cs);
+          set({ ...victoryState, isAnimating: false });
+        }
+      } else if (result === 'player_dead') {
         set({ phase: 'gameover', isAnimating: false });
       } else {
-        // Start new turn
-        const nextTurn = engine.startTurn(currentState);
+        const nextTurn = engine.startTurn(cs);
         set({ ...nextTurn, isAnimating: false });
       }
     }, 600);
@@ -137,25 +107,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   confirmRewards: () => {
     const state = get();
-    // Add all picked cards to deck
-    let newState: GameState = { ...state };
+    let ns: GameState = { ...state };
     for (const uid of state.pickedRewards) {
-      newState = engine.addRewardCard(newState, uid);
+      ns = engine.addRewardCard(ns, uid);
     }
-    // Clear picked and proceed
-    const afterProceed = engine.proceedAfterReward({ ...newState, pickedRewards: [] });
-    set(afterProceed);
+    const after = engine.confirmRewards({ ...ns, pickedRewards: [] });
+    set(after);
   },
 
   skipRewards: () => {
     const state = get();
     const newState = engine.skipRewards(state);
-    set({ ...newState, pickedRewards: [] });
+    set(newState);
   },
 
-  proceedAfterEvolution: () => {
+  chooseEvolution: (classPath: ClassPath) => {
     const state = get();
-    const newState = engine.proceedAfterEvolution(state);
+    const newState = engine.chooseEvolution(state, classPath);
     set(newState);
   },
 }));
+
+

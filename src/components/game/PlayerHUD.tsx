@@ -1,18 +1,7 @@
 'use client';
 
 import { useGameStore } from '@/store/gameStore';
-import { getCardDef, getEvolution } from '@/game/data/cards';
-import { EVOLUTIONS } from '@/game/data/cards';
-
-const tierColors = [
-  'from-stone-500 to-stone-700',
-  'from-amber-600 to-amber-800',
-  'from-red-600 to-red-800',
-  'from-orange-500 to-amber-700',
-  'from-yellow-400 to-amber-500',
-];
-
-const tierEmojis = ['🚶', '📖', '⚔️', '🛡️', '👑'];
+import { getEvolutionNode, getClassColor, getClassEmoji } from '@/game/data/evolutions';
 
 export function PlayerHUD() {
   const player = useGameStore(s => s.player);
@@ -25,39 +14,41 @@ export function PlayerHUD() {
 
   if (phase === 'menu') return null;
 
-  const evo = EVOLUTIONS[player.evolutionTier];
-  const nextEvo = player.evolutionTier < 4 ? EVOLUTIONS[player.evolutionTier + 1] : null;
+  const evo = getEvolutionNode(player.classPath);
   const hpPercent = (player.hp / player.maxHp) * 100;
   const energyPercent = (player.energy / player.maxEnergy) * 100;
-  const xpPercent = nextEvo
-    ? Math.min(100, (player.xp / nextEvo.requiredXp) * 100)
-    : 100;
+  const nextThreshold = [15, 40, 80][player.evolutionTier] ?? 999;
+  const xpPercent = Math.min(100, (player.xp / nextThreshold) * 100);
 
   return (
     <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
       {/* Evolution & Stats Row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${tierColors[player.evolutionTier]} flex items-center justify-center border border-white/20`}>
-            <span className="text-lg">{tierEmojis[player.evolutionTier]}</span>
+          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getClassColor(player.classPath)} flex items-center justify-center border border-white/20`}>
+            <span className="text-lg">{getClassEmoji(player.classPath)}</span>
           </div>
           <div>
             <p className="text-white/90 text-sm font-semibold leading-tight">{evo.name}</p>
             <p className="text-white/40 text-xs italic">{evo.title}</p>
           </div>
         </div>
-
         <div className="flex items-center gap-3 text-xs text-white/60">
-          <span>⚔️ Enc. {encounter}</span>
-          {player.strength > 0 && (
-            <span className="text-amber-400">💪+{player.strength}</span>
-          )}
+          <span>⚔️ {encounter}</span>
+          {player.strength > 0 && <span className="text-amber-400">💪+{player.strength}</span>}
           {pendingEvolution && (
             <span className="text-yellow-300 animate-pulse text-[10px] px-1.5 py-0.5 bg-yellow-400/20 rounded-full border border-yellow-400/30">
               EVOLUCIONAR
             </span>
           )}
         </div>
+      </div>
+
+      {/* Passive indicator */}
+      <div className="text-center">
+        <span className="text-[10px] text-amber-200/50 bg-amber-900/20 px-2 py-0.5 rounded-full border border-amber-400/10">
+          {evo.passiveDescription}
+        </span>
       </div>
 
       {/* HP Bar */}
@@ -95,7 +86,7 @@ export function PlayerHUD() {
         <div className="flex-1">
           <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
             <span>✨ XP</span>
-            <span>{player.xp}{nextEvo ? `/${nextEvo.requiredXp}` : ' MAX'}</span>
+            <span>{player.xp}/{nextThreshold}</span>
           </div>
           <div className="h-2.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
             <div
@@ -108,9 +99,9 @@ export function PlayerHUD() {
 
       {/* Deck counters */}
       <div className="flex items-center gap-3 text-[11px] text-white/40 justify-center">
-        <span>🃏 Mazo: {deck.length}</span>
-        <span>✋ Mano: {hand.length}</span>
-        <span>🗑 Descarte: {discard.length}</span>
+        <span>🃏 {deck.length}</span>
+        <span>✋ {hand.length}</span>
+        <span>🗑 {discard.length}</span>
       </div>
     </div>
   );

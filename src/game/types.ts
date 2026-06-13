@@ -5,16 +5,45 @@ export type ClassPath =
   | 'mago' | 'picaro' | 'guerrero'
   | 'hechicero' | 'brujo' | 'asesino' | 'bardo' | 'paladin' | 'berserker';
 
-export type CardRarity = 'starter' | 'common' | 'rare' | 'legendary';
+export type CardRarity = 'starter' | 'common' | 'rare' | 'legendary' | 'curse';
 export type CardTarget = 'enemy' | 'self' | 'all_enemies' | 'passive';
 export type EnemyTier = 'easy' | 'medium' | 'hard' | 'boss';
+
 export type GamePhase =
   | 'menu'
-  | 'battle'
+  | 'map'           // viewing the roguelite map, choosing next node
+  | 'battle'        // combat
   | 'evolution_choice'
-  | 'reward'
+  | 'reward'        // post-combat card reward
+  | 'rest'          // rest stop: heal / remove card / upgrade card
+  | 'shop'          // buy cards, remove cards, upgrade cards
+  | 'event'         // event narrative + choices
+  | 'event_result'  // outcome of an event choice
   | 'gameover'
   | 'victory';
+
+// ─── Map ───────────────────────────────────────────────
+
+export type NodeType = 'combat' | 'elite' | 'rest' | 'shop' | 'event' | 'treasure' | 'boss' | 'evolution';
+
+export interface MapNode {
+  id: string;
+  type: NodeType;
+  layer: number;       // 0-9
+  column: number;      // 0 or 1 (2 columns)
+  visited: boolean;
+  available: boolean;
+  // Combat / Elite / Boss nodes
+  encounterDifficulty: number;  // scales enemy selection
+  eventId?: string;     // for event nodes
+}
+
+export interface GameMap {
+  nodes: MapNode[];     // flat list, ordered by layer
+  currentLayer: number; // 0-9
+  visitedNodeIds: Set<string>;
+  maxLayer: number;
+}
 
 // ─── Evolution ──────────────────────────────────────────
 
@@ -52,6 +81,22 @@ export interface EvolutionNode {
 
 // ─── Cards ─────────────────────────────────────────────
 
+export interface CardUpgradeBonus {
+  bonusDamage?: number;
+  bonusBlock?: number;
+  bonusHeal?: number;
+  costReduction?: number;
+  bonusDraw?: number;
+  bonusBurn?: number;
+  bonusPoison?: number;
+  bonusEnergyGain?: number;
+  bonusStrengthBuff?: number;
+  bonusAoeDamage?: number;
+  bonusFreeze?: number;
+  bonusWeaken?: number;
+  bonusSelfDamageReduction?: number; // reduces self-damage
+}
+
 export interface CardDef {
   id: string;
   name: string;
@@ -86,6 +131,8 @@ export interface CardDef {
   // conditional (execute: if enemy < X% HP, deal executeDamage)
   executeThreshold?: number;
   executeDamage?: number;
+  // upgrade bonus: applied when card.upgraded = true
+  upgradeBonus?: CardUpgradeBonus;
 }
 
 // ─── Transform map ─────────────────────────────────────
@@ -104,7 +151,7 @@ export interface EnemyDef {
   tier: EnemyTier;
   minEncounter: number;
   description: string;
-  classWeakness?: ClassPath; // takes 50% more damage from this class family
+  classWeakness?: ClassPath;
 }
 
 export interface EnemyState {
@@ -136,6 +183,7 @@ export interface PlayerState {
   nextAttackBuff: number;
   dodgeCount: number;
   attackBuffTurn: number;
+  gold: number;
 }
 
 // ─── Instances ──────────────────────────────────────────
@@ -143,7 +191,46 @@ export interface PlayerState {
 export interface CardInstance {
   uid: string;
   defId: string;
+  upgraded: boolean;
 }
+
+// ─── Events ─────────────────────────────────────────────
+
+export interface EventOption {
+  id: string;
+  text: string;          // short choice text
+  narrative: string;     // what happens after choosing
+  goldChange?: number;
+  hpChange?: number;     // direct HP change (can be negative)
+  maxHpChange?: number;   // permanent max HP change
+  cardReward?: string;    // cardId to add to deck
+  canRemoveCard?: boolean;
+  canUpgradeCard?: boolean;
+  curseCard?: string;     // cardId of curse to add
+  nextEncounterDamageBonus?: number;  // buff/debuff next enemy encounter
+}
+
+export interface GameEvent {
+  id: string;
+  title: string;
+  narrative: string;
+  emoji: string;
+  options: EventOption[];
+}
+
+// ─── Shop ───────────────────────────────────────────────
+
+export interface ShopItem {
+  id: string;
+  type: 'card' | 'remove' | 'upgrade';
+  cardDefId?: string;
+  cost: number;
+  sold: boolean;
+}
+
+// ─── Rest ───────────────────────────────────────────────
+
+export type RestChoice = 'heal' | 'remove' | 'upgrade';
 
 // ─── Game State ─────────────────────────────────────────
 
@@ -161,4 +248,18 @@ export interface GameState {
   pendingEvolution: boolean;
   evolutionChoices: ClassPath[];
   pickedRewards: string[];
+  // Map
+  map: GameMap | null;
+  currentNodeId: string | null;
+  // Rest
+  restChoice: RestChoice | null;
+  removingCard: boolean;
+  upgradingCard: boolean;
+  // Event
+  currentEvent: GameEvent | null;
+  eventOutcome: EventOption | null;
+  // Shop
+  shopItems: ShopItem[];
+  // Meta flags
+  nextEncounterDamageBonus: number;
 }

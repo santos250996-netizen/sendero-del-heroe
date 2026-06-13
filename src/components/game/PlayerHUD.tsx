@@ -11,6 +11,9 @@ export function PlayerHUD() {
   const discard = useGameStore(s => s.discard);
   const hand = useGameStore(s => s.hand);
   const pendingEvolution = useGameStore(s => s.pendingEvolution);
+  const gold = useGameStore(s => s.player.gold);
+  const map = useGameStore(s => s.map);
+  const currentNodeId = useGameStore(s => s.currentNodeId);
 
   if (phase === 'menu') return null;
 
@@ -19,6 +22,13 @@ export function PlayerHUD() {
   const energyPercent = (player.energy / player.maxEnergy) * 100;
   const nextThreshold = [15, 40, 80][player.evolutionTier] ?? 999;
   const xpPercent = Math.min(100, (player.xp / nextThreshold) * 100);
+
+  const currentLayer = map?.currentLayer || 0;
+  const maxLayer = map?.maxLayer || 9;
+  const progressPercent = (currentLayer / maxLayer) * 100;
+
+  // Hide energy/XP in non-battle phases
+  const showBattleStats = phase === 'battle';
 
   return (
     <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
@@ -34,9 +44,10 @@ export function PlayerHUD() {
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-white/60">
-          <span>⚔️ {encounter}</span>
+          <span className="text-yellow-300 font-bold">🪙 {gold}</span>
+          {showBattleStats && <span>⚔️ {encounter}</span>}
           {player.strength > 0 && <span className="text-amber-400">💪+{player.strength}</span>}
-          {pendingEvolution && (
+          {pendingEvolution && phase !== 'map' && (
             <span className="text-yellow-300 animate-pulse text-[10px] px-1.5 py-0.5 bg-yellow-400/20 rounded-full border border-yellow-400/30">
               EVOLUCIONAR
             </span>
@@ -50,6 +61,22 @@ export function PlayerHUD() {
           {evo.passiveDescription}
         </span>
       </div>
+
+      {/* Map progress bar (shown outside battle) */}
+      {!showBattleStats && (
+        <div>
+          <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
+            <span>🗺️ Progreso</span>
+            <span>Capa {currentLayer}/{maxLayer}</span>
+          </div>
+          <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-500"
+              style={{ width: `${Math.max(5, progressPercent)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* HP Bar */}
       <div>
@@ -69,40 +96,44 @@ export function PlayerHUD() {
         </div>
       </div>
 
-      {/* Energy + XP Row */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
-            <span>⚡ Energía</span>
-            <span>{player.energy}/{player.maxEnergy}</span>
+      {/* Energy + XP Row (battle only) */}
+      {showBattleStats && (
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
+              <span>⚡ Energía</span>
+              <span>{player.energy}/{player.maxEnergy}</span>
+            </div>
+            <div className="h-2.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-all duration-300"
+                style={{ width: `${energyPercent}%` }}
+              />
+            </div>
           </div>
-          <div className="h-2.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-all duration-300"
-              style={{ width: `${energyPercent}%` }}
-            />
+          <div className="flex-1">
+            <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
+              <span>✨ XP</span>
+              <span>{player.xp}/{nextThreshold}</span>
+            </div>
+            <div className="h-2.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-400 transition-all duration-500"
+                style={{ width: `${xpPercent}%` }}
+              />
+            </div>
           </div>
         </div>
-        <div className="flex-1">
-          <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
-            <span>✨ XP</span>
-            <span>{player.xp}/{nextThreshold}</span>
-          </div>
-          <div className="h-2.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-400 transition-all duration-500"
-              style={{ width: `${xpPercent}%` }}
-            />
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Deck counters */}
-      <div className="flex items-center gap-3 text-[11px] text-white/40 justify-center">
-        <span>🃏 {deck.length}</span>
-        <span>✋ {hand.length}</span>
-        <span>🗑 {discard.length}</span>
-      </div>
+      {showBattleStats && (
+        <div className="flex items-center gap-3 text-[11px] text-white/40 justify-center">
+          <span>🃏 {deck.length}</span>
+          <span>✋ {hand.length}</span>
+          <span>🗑 {discard.length}</span>
+        </div>
+      )}
     </div>
   );
 }

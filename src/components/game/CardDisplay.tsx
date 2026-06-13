@@ -197,7 +197,7 @@ export function HandDisplay() {
 
 // Reward card (bigger, clickable for selection)
 export function RewardCard({ cardUid, selected }: { cardUid: string; selected: boolean }) {
-  const addRewardCard = useGameStore(s => s.addRewardCard);
+  const toggleRewardCard = useGameStore(s => s.toggleRewardCard);
 
   const card = useGameStore(s => s.rewardCards.find(c => c.uid === cardUid));
   if (!card) return null;
@@ -207,18 +207,23 @@ export function RewardCard({ cardUid, selected }: { cardUid: string; selected: b
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      animate={{ scale: selected ? 1.03 : 1, opacity: 1 }}
       whileHover={{ scale: 1.05, y: -4 }}
       whileTap={{ scale: 0.97 }}
-      onClick={() => !selected && addRewardCard(cardUid)}
-      className={`relative flex-shrink-0 w-[160px] sm:w-[180px] h-[230px] sm:h-[260px] rounded-xl border cursor-pointer select-none overflow-hidden ${
-        rarityColors[def.rarity]
-      } ${
+      onClick={() => toggleRewardCard(cardUid)}
+      className={`relative flex-shrink-0 w-[160px] sm:w-[180px] h-[230px] sm:h-[260px] rounded-xl border-2 cursor-pointer select-none overflow-hidden transition-all duration-200 ${
         selected
-          ? 'opacity-30 cursor-not-allowed'
-          : 'hover:border-white/50 hover:brightness-110'
-      } ${rarityGlow[def.rarity]}`}
+          ? 'border-emerald-400/80 bg-emerald-950/50 shadow-lg shadow-emerald-500/30'
+          : rarityColors[def.rarity]
+      } hover:brightness-110`}
     >
+      {/* Selected checkmark */}
+      {selected && (
+        <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold z-10 shadow-lg">
+          ✓
+        </div>
+      )}
+
       {/* Cost gem */}
       <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-base font-bold shadow-lg shadow-blue-500/30">
         {def.cost}

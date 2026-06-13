@@ -12,14 +12,15 @@ interface GameStore extends GameState {
   startNewGame: () => void;
   playCard: (cardUid: string) => void;
   endTurn: () => void;
-  addRewardCard: (cardUid: string) => void;
+  toggleRewardCard: (cardUid: string) => void;
   skipRewards: () => void;
-  proceedAfterReward: () => void;
+  confirmRewards: () => void;
   proceedAfterEvolution: () => void;
   // Helpers
   getCardDef: (id: string) => ReturnType<typeof getCardDef>;
   isAnimating: boolean;
   setIsAnimating: (v: boolean) => void;
+  pickedRewards: string[]; // UIDs of cards the player selected
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -46,6 +47,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   rewardCards: [],
   pendingEvolution: false,
   isAnimating: false,
+  pickedRewards: [],
 
   setIsAnimating: (v) => set({ isAnimating: v }),
 
@@ -124,22 +126,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }, 600);
   },
 
-  addRewardCard: (cardUid: string) => {
+  toggleRewardCard: (cardUid: string) => {
     const state = get();
-    const newState = engine.addRewardCard(state, cardUid);
-    set(newState);
+    set({
+      pickedRewards: state.pickedRewards.includes(cardUid)
+        ? state.pickedRewards.filter(id => id !== cardUid)
+        : [...state.pickedRewards, cardUid],
+    });
+  },
+
+  confirmRewards: () => {
+    const state = get();
+    // Add all picked cards to deck
+    let newState: GameState = { ...state };
+    for (const uid of state.pickedRewards) {
+      newState = engine.addRewardCard(newState, uid);
+    }
+    // Clear picked and proceed
+    const afterProceed = engine.proceedAfterReward({ ...newState, pickedRewards: [] });
+    set(afterProceed);
   },
 
   skipRewards: () => {
     const state = get();
     const newState = engine.skipRewards(state);
-    set(newState);
-  },
-
-  proceedAfterReward: () => {
-    const state = get();
-    const newState = engine.proceedAfterReward(state);
-    set(newState);
+    set({ ...newState, pickedRewards: [] });
   },
 
   proceedAfterEvolution: () => {

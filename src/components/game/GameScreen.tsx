@@ -23,8 +23,9 @@ export function GameScreen() {
   const endTurn = useGameStore(s => s.endTurn);
   const isAnimating = useGameStore(s => s.isAnimating);
   const startNewGame = useGameStore(s => s.startNewGame);
-  const proceedAfterReward = useGameStore(s => s.proceedAfterReward);
   const skipRewards = useGameStore(s => s.skipRewards);
+  const confirmRewards = useGameStore(s => s.confirmRewards);
+  const pickedRewards = useGameStore(s => s.pickedRewards);
   const proceedAfterEvolution = useGameStore(s => s.proceedAfterEvolution);
   const log = useGameStore(s => s.log);
   const player = useGameStore(s => s.player);
@@ -132,14 +133,21 @@ export function GameScreen() {
 
       {/* ─── REWARD ─── */}
       {phase === 'reward' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 pb-32">
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4 pb-32">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="text-center"
           >
             <h2 className="text-3xl sm:text-4xl font-bold text-amber-300">¡Victoria!</h2>
-            <p className="text-white/50 mt-2 text-sm">Elige una carta para añadir a tu mazo</p>
+            <p className="text-white/50 mt-2 text-sm">
+              Elige las cartas que quieras añadir a tu mazo
+            </p>
+            {pickedRewards.length > 0 && (
+              <p className="text-emerald-300/80 mt-1 text-xs">
+                ✓ {pickedRewards.length} carta{pickedRewards.length > 1 ? 's' : ''} seleccionada{pickedRewards.length > 1 ? 's' : ''}
+              </p>
+            )}
             {useGameStore.getState().pendingEvolution && (
               <p className="text-yellow-300/80 mt-2 text-xs animate-pulse">
                 ✨ ¡Puedes evolucionar después!
@@ -149,16 +157,32 @@ export function GameScreen() {
 
           <div className="flex gap-4 sm:gap-6 justify-center flex-wrap">
             {rewardCards.map(card => (
-              <RewardCard key={card.uid} cardUid={card.uid} selected={false} />
+              <RewardCard
+                key={card.uid}
+                cardUid={card.uid}
+                selected={pickedRewards.includes(card.uid)}
+              />
             ))}
           </div>
 
-          <button
-            onClick={skipRewards}
-            className="px-6 py-2.5 bg-transparent border border-white/20 text-white/50 rounded-xl text-sm hover:border-white/40 hover:text-white/70 transition-all"
-          >
-            Saltar recompensa
-          </button>
+          <div className="flex gap-3">
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={confirmRewards}
+              className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30"
+            >
+              Confirmar ({pickedRewards.length})
+            </motion.button>
+            <button
+              onClick={skipRewards}
+              className="px-6 py-3 bg-transparent border border-white/20 text-white/50 rounded-xl text-sm hover:border-white/40 hover:text-white/70 transition-all"
+            >
+              Saltar
+            </button>
+          </div>
         </div>
       )}
 

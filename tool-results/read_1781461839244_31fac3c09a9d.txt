@@ -1,0 +1,971 @@
+     1→import {
+     2→  type GameState, type CardInstance, type CardDef, type ClassPath, type MapNode, type NodeType,
+     3→  type GameEvent, type EventOption, type ShopItem, type RestChoice,
+     4→} from './types';
+     5→import { getCardDef, getEffectiveCardDef, transformCard, getRewardPool, getRandomClassCard } from './data/cards';
+     6→import { getEvolutionNode, getEvolutionChoices, getClassLineage, EVOLUTION_TREE } from './data/evolutions';
+     7→import { getEnemyForEncounter, getEnemyDef, ALL_ENEMIES } from './data/enemies';
+     8→import {
+     9→  generateMap, visitNode,
+    10→  getRandomEvent, getCombatGoldReward, getTreasureReward,
+    11→} from './data/map';
+    12→
+    13→// ─── UID Generator ────────────────────────────────────────
+    14→let uidCounter = 0;
+    15→function resetUidCounter() { uidCounter = 0; }
+    16→function uid(): string {
+    17→  return 'c' + (++uidCounter) + '_' + Date.now().toString(36);
+    18→}
+    19→
+    20→// ─── Create new game ─────────────────────────────────────
+    21→export function createNewGame(): GameState {
+    22→  resetUidCounter();
+    23→  const evo = getEvolutionNode('vagabundo');
+    24→  const starterCards: CardInstance[] = [];
+    25→  for (let i = 0; i < 3; i++) {
+    26→    evo.unlockCardIds.forEach(defId => {
+    27→      starterCards.push({ uid: uid(), defId, upgraded: false });
+    28→    });
+    29→  }
+    30→  const map = generateMap();
+    31→  const baseState: GameState = {
+    32→    phase: 'map',
+    33→    player: {
+    34→      hp: evo.maxHp, maxHp: evo.maxHp,
+    35→      energy: evo.maxEnergy, maxEnergy: evo.maxEnergy,
+    36→      drawPerTurn: evo.drawPerTurn,
+    37→      strength: 0, xp: 0,
+    38→      evolutionTier: 0,
+    39→      classPath: 'vagabundo',
+    40→      block: 0,
+    41→      nextAttackBuff: 0,
+    42→      dodgeCount: 0,
+    43→      attackBuffTurn: 0,
+    44→      gold: 30, // start with some gold
+    45→    },
+    46→    deck: starterCards, hand: [], discard: [],
+    47→    enemy: null,
+    48→    encounter: 0, turn: 0,
+    49→    log: ['Tu viaje comienza como Vagabundo...'],
+    50→    rewardCards: [], pendingEvolution: false,
+    51→    evolutionChoices: [], pickedRewards: [],
+    52→    map,
+    53→    currentNodeId: null,
+    54→    restChoice: null,
+    55→    removingCard: false,
+    56→    upgradingCard: false,
+    57→    currentEvent: null,
+    58→    eventOutcome: null,
+    59→    shopItems: [],
+    60→    nextEncounterDamageBonus: 0,
+    61→  };
+    62→  return baseState;
+    63→}
+    64→
+    65→// ─── Select a map node ───────────────────────────────────
+    66→export function selectMapNode(state: GameState, nodeId: string): GameState {
+    67→  const node = state.map?.nodes.find(n => n.id === nodeId);
+    68→  if (!node || !node.available || node.visited) return state;
+    69→
+    70→  const newMap = visitNode(state.map!, nodeId);
+    71→
+    72→  return {
+    73→    ...state,
+    74→    map: newMap,
+    75→    currentNodeId: nodeId,
+    76→  };
+    77→}
+    78→
+    79→// ─── Enter a node (after selecting it on the map) ─────────
+    80→export function enterNode(state: GameState): GameState {
+    81→  const node = state.map?.nodes.find(n => n.id === state.currentNodeId);
+    82→  if (!node) return state;
+    83→
+    84→  switch (node.type) {
+    85→    case 'combat':
+    86→    case 'elite':
+    87→    case 'boss':
+    88→      return enterCombat(state, node);
+    89→
+    90→    case 'rest':
+    91→      return { ...state, phase: 'rest', restChoice: null, removingCard: false, upgradingCard: false };
+    92→
+    93→    case 'shop':
+    94→      return enterShop(state);
+    95→
+    96→    case 'event':
+    97→      return enterEvent(state);
+    98→
+    99→    case 'treasure':
+   100→      return resolveTreasure(state);
+   101→
+   102→    case 'evolution':
+   103→      // Not used in current flow (evolution is handled via XP thresholds)
+   104→      return enterCombat(state, node);
+   105→
+   106→    default:
+   107→      return { ...state, phase: 'map', currentNodeId: null };
+   108→  }
+   109→}
+   110→
+   111→// ─── Enter Combat ────────────────────────────────────────
+   112→function enterCombat(state: GameState, node: MapNode): GameState {
+   113→  let enemyDef;
+   114→  if (node.type === 'boss') {
+   115→    // Boss node ALWAYS spawns a boss enemy
+   116→    const bosses = ALL_ENEMIES.filter(e => e.tier === 'boss');
+   117→    enemyDef = bosses[Math.floor(Math.random() * bosses.length)];
+   118→  } else {
+   119→    const lastEnemyId = state.enemy?.defId;
+   120→    enemyDef = getEnemyForEncounter(node.encounterDifficulty, lastEnemyId);
+   121→  }
+   122→  const healAmount = Math.floor(state.player.maxHp * 0.10); // 10% heal between combats (less than before since we have rest)
+   123→
+   124→  const encounter = state.encounter + 1;
+   125→
+   126→  const newState: GameState = {
+   127→    ...state,
+   128→    phase: 'battle',
+   129→    enemy: {
+   130→      defId: enemyDef.id,
+   131→      hp: enemyDef.maxHp, maxHp: enemyDef.maxHp,
+   132→      block: enemyDef.block,
+   133→      name: enemyDef.name, tier: enemyDef.tier,
+   134→      burn: 0, poison: 0, freeze: 0, weaken: 0,
+   135→    },
+   136→    encounter,
+   137→    turn: 0,
+   138→    player: {
+   139→      ...state.player,
+   140→      hp: Math.min(state.player.hp + healAmount, state.player.maxHp),
+   141→      block: 0,
+   142→      nextAttackBuff: 0,
+   143→      dodgeCount: 0,
+   144→      attackBuffTurn: 0,
+   145→    },
+   146→    deck: [...state.deck, ...state.discard, ...state.hand],
+   147→    discard: [],
+   148→    hand: [],
+   149→    log: [`--- Encuentro ${encounter}: ${enemyDef.name} ---`, ...state.log],
+   150→    pendingEvolution: false,
+   151→    evolutionChoices: [],
+   152→    rewardCards: [],
+   153→    pickedRewards: [],
+   154→  };
+   155→  return startTurn(newState);
+   156→}
+   157→
+   158→// ─── Start turn ───────────────────────────────────────────
+   159→export function startTurn(state: GameState): GameState {
+   160→  const turn = state.turn + 1;
+   161→  const p = { ...state.player };
+   162→  const logEntries: string[] = [];
+   163→
+   164→  p.energy = p.maxEnergy;
+   165→  p.attackBuffTurn = 0;
+   166→
+   167→  const passive = getEvolutionNode(p.classPath).passive;
+   168→  if (passive.type === 'extra_energy') {
+   169→    p.energy += passive.value;
+   170→    logEntries.push(`Pasiva: +${passive.value} energía`);
+   171→  }
+   172→
+   173→  // Cap energy to prevent overflow
+   174→  p.energy = Math.min(p.energy, p.maxEnergy * 2);
+   175→
+   176→  let drawCount = p.drawPerTurn;
+   177→  if (passive.type === 'extra_draw') {
+   178→    drawCount += passive.value;
+   179→    if (passive.value > 0) logEntries.push(`Pasiva: +${passive.value} robo`);
+   180→  }
+   181→
+   182→  // Deck size penalty: if deck > 15 cards, draw 1 less
+   183→  if (state.deck.length > 15) {
+   184→    drawCount = Math.max(1, drawCount - 1);
+   185→    logEntries.push('Mazo pesado: -1 robo');
+   186→  }
+   187→
+   188→  // Handle vacuum curse: if player draws a vacuum card, they lose 1 energy
+   189→  let s: GameState = { ...state, turn, player: p, log: [...logEntries, ...state.log] };
+   190→  s = drawCards(s, drawCount);
+   191→
+   192→  // Check for vacuum curse in hand
+   193→  for (const card of s.hand) {
+   194→    if (card.defId === 'vacuidad') {
+   195→      s.player.energy = Math.max(0, s.player.energy - 1);
+   196→      s.log = [`Vacuidad: -1 energía`, ...s.log];
+   197→    }
+   198→  }
+   199→
+   200→  return s;
+   201→}
+   202→
+   203→// ─── Draw cards ───────────────────────────────────────────
+   204→export function drawCards(state: GameState, count: number): GameState {
+   205→  let s = { ...state };
+   206→  for (let i = 0; i < count; i++) {
+   207→    if (s.hand.length >= 8) break;
+   208→    if (s.deck.length === 0) {
+   209→      s = { ...s, deck: shuffle([...s.discard]), discard: [] };
+   210→      if (s.deck.length === 0) break;
+   211→    }
+   212→    const card = s.deck[0];
+   213→    s = { ...s, deck: s.deck.slice(1), hand: [...s.hand, card] };
+   214→  }
+   215→  return s;
+   216→}
+   217→
+   218→// ─── Play a card ──────────────────────────────────────────
+   219→export function playCard(state: GameState, cardUid: string): GameState {
+   220→  const card = state.hand.find(c => c.uid === cardUid);
+   221→  if (!card) return state;
+   222→  const effectiveDef = getEffectiveCardDef(card);
+   223→  if (state.player.energy < effectiveDef.cost) {
+   224→    return { ...state, log: ['No tienes suficiente energía.', ...state.log] };
+   225→  }
+   226→
+   227→  let newState: GameState = {
+   228→    ...state,
+   229→    player: { ...state.player, energy: state.player.energy - effectiveDef.cost },
+   230→    hand: state.hand.filter(c => c.uid !== cardUid),
+   231→  };
+   232→
+   233→  newState = applyCardEffect(newState, effectiveDef);
+   234→  newState = { ...newState, discard: [...newState.discard, card] };
+   235→  return newState;
+   236→}
+   237→
+   238→// ─── Apply card effects ───────────────────────────────────
+   239→function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveCardDef>): GameState {
+   240→  let s = { ...state };
+   241→  const p = { ...s.player };
+   242→  const e = s.enemy ? { ...s.enemy } : null;
+   243→  const logEntries: string[] = [];
+   244→  const passive = getEvolutionNode(p.classPath).passive;
+   245→  const passiveDamage = passive.type === 'bonus_damage' ? passive.value : 0;
+   246→
+   247→  // Low HP bonus damage (Berserker passive)
+   248→  const lowHpDamage = (passive.type === 'low_hp_damage' && (p.hp / p.maxHp) < 0.5) ? passive.value : 0;
+   249→
+   250→  // ── Damage to single enemy ──
+   251→  if (card.damage && e && card.target === 'enemy') {
+   252→    let totalDmg = card.damage + p.strength + passiveDamage + lowHpDamage + p.nextAttackBuff + p.attackBuffTurn;
+   253→
+   254→    if (card.executeThreshold && card.executeDamage) {
+   255→      const hpPercent = (e.hp / e.maxHp) * 100;
+   256→      if (hpPercent < card.executeThreshold) {
+   257→        totalDmg = card.executeDamage + p.strength + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff;
+   258→        logEntries.push(`¡EJECUCIÓN!`);
+   259→      }
+   260→    }
+   261→
+   262→    if (p.nextAttackBuff > 0) {
+   263→      p.nextAttackBuff = 0;
+   264→    }
+   265→
+   266→    const enemyDef = getEnemyDef(e.defId);
+   267→    if (enemyDef.classWeakness && getClassLineage(p.classPath).includes(enemyDef.classWeakness)) {
+   268→      totalDmg = Math.floor(totalDmg * 1.5);
+   269→    }
+   270→
+   271→    if (card.armorPierce) {
+   272→      e.hp -= totalDmg;
+   273→      logEntries.push(`${card.name}: ${totalDmg} daño (perfora)`);
+   274→    } else {
+   275→      const blocked = Math.min(e.block, totalDmg);
+   276→      const remaining = totalDmg - blocked;
+   277→      e.block -= blocked;
+   278→      if (remaining > 0) e.hp -= remaining;
+   279→      logEntries.push(`${card.name}: ${totalDmg} daño (${blocked} bloqueado, ${remaining} pasado)`);
+   280→    }
+   281→
+   282→    if (passive.type === 'heal_on_damage' && totalDmg > 0) {
+   283→      p.hp = Math.min(p.hp + passive.value, p.maxHp);
+   284→    }
+   285→  }
+   286→
+   287→  // ── AOE Damage ──
+   288→  if (card.aoeDamage && e) {
+   289→    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff;
+   290→    const enemyDef = getEnemyDef(e.defId);
+   291→    if (enemyDef.classWeakness && getClassLineage(p.classPath).includes(enemyDef.classWeakness)) {
+   292→      totalDmg = Math.floor(totalDmg * 1.5);
+   293→    }
+   294→    if (!card.armorPierce) {
+   295→      const blocked = Math.min(e.block, totalDmg);
+   296→      const remaining = totalDmg - blocked;
+   297→      e.block -= blocked;
+   298→      if (remaining > 0) e.hp -= remaining;
+   299→    } else {
+   300→      e.hp -= totalDmg;
+   301→    }
+   302→    logEntries.push(`${card.name}: ${totalDmg} daño AOE`);
+   303→    if (passive.type === 'heal_on_damage' && totalDmg > 0) {
+   304→      p.hp = Math.min(p.hp + passive.value, p.maxHp);
+   305→    }
+   306→  }
+   307→
+   308→  // ── Heal ──
+   309→  if (card.heal) {
+   310→    p.hp = Math.min(p.hp + card.heal, p.maxHp);
+   311→    logEntries.push(`${card.name}: +${card.heal} HP`);
+   312→  }
+   313→
+   314→  // ── Block ──
+   315→  if (card.block) {
+   316→    p.block += card.block;
+   317→    logEntries.push(`${card.name}: +${card.block} protección`);
+   318→  }
+   319→
+   320→  // ── Dodge ──
+   321→  if (card.dodge) {
+   322→    p.dodgeCount += card.dodge;
+   323→    logEntries.push(`${card.name}: esquiva ${card.dodge} ataque${card.dodge > 1 ? 's' : ''}`);
+   324→  }
+   325→
+   326→  // ── Self damage ──
+   327→  if (card.selfDamage) {
+   328→    p.hp -= card.selfDamage;
+   329→    logEntries.push(`${card.name}: -${card.selfDamage} HP propio`);
+   330→  }
+   331→
+   332→  // ── Energy gain (can be negative for curse) ──
+   333→  if (card.energyGain) {
+   334→    p.energy = Math.max(0, p.energy + card.energyGain);
+   335→    logEntries.push(`${card.name}: ${card.energyGain > 0 ? '+' : ''}${card.energyGain} energía`);
+   336→  }
+   337→
+   338→  // ── Strength buff ──
+   339→  if (card.strengthBuff) {
+   340→    p.strength += card.strengthBuff;
+   341→    logEntries.push(`${card.name}: +${card.strengthBuff} Fuerza`);
+   342→  }
+   343→
+   344→  // ── Draw cards ──
+   345→  if (card.drawCards) {
+   346→    logEntries.push(`${card.name}: roba ${card.drawCards}`);
+   347→  }
+   348→
+   349→  // ── Next attack buff ──
+   350→  if (card.nextAttackBuff && card.target === 'passive') {
+   351→    p.nextAttackBuff += card.nextAttackBuff;
+   352→    logEntries.push(`${card.name}: +${card.nextAttackBuff} próximo ataque`);
+   353→  }
+   354→
+   355→  // ── Attack buff this turn ──
+   356→  if (card.attackBuffTurn) {
+   357→    p.attackBuffTurn += card.attackBuffTurn;
+   358→    logEntries.push(`${card.name}: +${card.attackBuffTurn} daño este turno`);
+   359→  }
+   360→
+   361→  // ── Enemy debuffs ──
+   362→  if (e) {
+   363→    if (card.burn) { e.burn += card.burn; logEntries.push(`${card.name}: +${card.burn} quemadura`); }
+   364→    if (card.poison) { e.poison += card.poison; logEntries.push(`${card.name}: +${card.poison} veneno`); }
+   365→    if (card.freeze) { e.freeze += card.freeze; logEntries.push(`${card.name}: +${card.freeze} congelación`); }
+   366→    if (card.weaken) { e.weaken += card.weaken; logEntries.push(`${card.name}: -${card.weaken} daño enemigo`); }
+   367→  }
+   368→
+   369→  s.player = p;
+   370→  s.enemy = e;
+   371→  s.log = [...logEntries, ...s.log];
+   372→
+   373→  if (card.drawCards) {
+   374→    s = drawCards(s, card.drawCards);
+   375→  }
+   376→  return s;
+   377→}
+   378→
+   379→// getClassLineage imported from evolutions.ts
+   380→
+   381→// ─── End player turn ──────────────────────────────────────
+   382→export function endPlayerTurn(state: GameState): GameState {
+   383→  let s: GameState = { ...state, discard: [...state.discard, ...state.hand], hand: [] };
+   384→
+   385→  const p = { ...s.player };
+   386→  const passive = getEvolutionNode(p.classPath).passive;
+   387→  const logEntries: string[] = [];
+   388→
+   389→  // Block decays at end of player turn (BEFORE passives so end_block survives)
+   390→  p.block = 0;
+   391→
+   392→  // Apply end-turn passives after clearing block
+   393→  if (passive.type === 'end_block') {
+   394→    p.block += passive.value;
+   395→    logEntries.push(`Pasiva: +${passive.value} bloque`);
+   396→  }
+   397→  if (passive.type === 'end_heal') {
+   398→    p.hp = Math.min(p.hp + passive.value, p.maxHp);
+   399→    logEntries.push(`Pasiva: +${passive.value} HP`);
+   400→  }
+   401→  s.player = p;
+   402→  s.log = [...logEntries, ...s.log];
+   403→
+   404→  s = enemyAction(s);
+   405→  return s;
+   406→}
+   407→
+   408→// ─── Enemy action ─────────────────────────────────────────
+   409→function enemyAction(state: GameState): GameState {
+   410→  if (!state.enemy) return state;
+   411→  const enemyDef = getEnemyDef(state.enemy.defId);
+   412→  const e = { ...state.enemy };
+   413→  const p = { ...state.player };
+   414→  const logEntries: string[] = [];
+   415→
+   416→  // Save DoT values before decrementing for Brujo passive
+   417→  const hadBurn = e.burn > 0;
+   418→  const hadPoison = e.poison > 0;
+   419→  if (e.burn > 0) { e.hp -= e.burn; logEntries.push(`Quemadura: ${e.burn} daño`); e.burn = Math.max(0, e.burn - 1); }
+   420→  if (e.poison > 0) { e.hp -= e.poison; logEntries.push(`Veneno: ${e.poison} daño`); e.poison = Math.max(0, e.poison - 1); }
+   421→
+   422→  // Brujo passive: heal on DoT damage
+   423→  const passive = getEvolutionNode(p.classPath).passive;
+   424→  if (passive.type === 'heal_on_damage' && (hadBurn || hadPoison)) {
+   425→    const dotHeal = passive.value;
+   426→    p.hp = Math.min(p.hp + dotHeal, p.maxHp);
+   427→    logEntries.push(`Pasiva: +${dotHeal} HP (Daño en el tiempo)`);
+   428→  }
+   429→
+   430→  if (e.hp <= 0) {
+   431→    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
+   432→  }
+   433→
+   434→  if (e.freeze > 0) {
+   435→    e.freeze--;
+   436→    logEntries.push(`${e.name} está congelado! No ataca.`);
+   437→    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
+   438→  }
+   439→
+   440→  // Enemy block resets each turn (gains base block, doesn't accumulate)
+   441→  e.block = enemyDef.block;
+   442→
+   443→  let dmg = Math.max(0, enemyDef.damage - e.weaken);
+   444→
+   445→  // Apply next encounter damage bonus (from events) — consumed once on first enemy turn
+   446→  if (state.nextEncounterDamageBonus !== 0) {
+   447→    dmg += state.nextEncounterDamageBonus;
+   448→    if (state.nextEncounterDamageBonus > 0) {
+   449→      logEntries.push(`¡Maldición del altar: +${state.nextEncounterDamageBonus} daño!`);
+   450→    } else {
+   451→      logEntries.push(`¡Ventaja del mercader: ${state.nextEncounterDamageBonus} daño al enemigo!`);
+   452→    }
+   453→  }
+   454→
+   455→  // Dodge check (before block)
+   456→  if (p.dodgeCount > 0) {
+   457→    p.dodgeCount--;
+   458→    logEntries.push(`Esquivas el ataque!`);
+   459→    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
+   460→  }
+   461→
+   462→  // Player block absorption
+   463→  if ((p.block || 0) > 0 && dmg > 0) {
+   464→    const absorbed = Math.min(p.block || 0, dmg);
+   465→    p.block = (p.block || 0) - absorbed;
+   466→    dmg -= absorbed;
+   467→    if (absorbed > 0) logEntries.push(`Bloqueas ${absorbed} daño`);
+   468→  }
+   469→
+   470→  p.hp -= dmg;
+   471→  logEntries.push(`${e.name} ataca por ${dmg} daño`);
+   472→
+   473→  return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
+   474→}
+   475→
+   476→// ─── Check combat end ──────────────────────────────────────
+   477→export function checkCombatEnd(state: GameState): 'enemy_dead' | 'player_dead' | 'continue' {
+   478→  // Enemy death checked first: mutual kill = player wins (roguelike standard)
+   479→  if (state.enemy && state.enemy.hp <= 0) return 'enemy_dead';
+   480→  if (state.player.hp <= 0) return 'player_dead';
+   481→  return 'continue';
+   482→}
+   483→
+   484→// ─── Victory ──────────────────────────────────────────────
+   485→export function handleVictory(state: GameState): GameState {
+   486→  const node = state.map?.nodes.find(n => n.id === state.currentNodeId);
+   487→  const nodeType = node?.type || 'combat';
+   488→
+   489→  const xpGain = state.enemy?.tier === 'boss' ? 25 : state.enemy?.tier === 'hard' ? 18 : state.enemy?.tier === 'medium' ? 12 : 8;
+   490→  const newXp = state.player.xp + xpGain;
+   491→
+   492→  // Gold reward
+   493→  const goldReward = getCombatGoldReward(nodeType);
+   494→
+   495→  // Check if evolution is available
+   496→  const choiceNodes = getEvolutionChoices(state.player.evolutionTier, state.player.classPath);
+   497→  const choiceIds: ClassPath[] = choiceNodes.map(n => n.id);
+   498→
+   499→  // Generate reward cards
+   500→  const allPlayerCards = [...state.deck, ...state.hand, ...state.discard];
+   501→  const rewardPool = getRewardPool(state.player.classPath, allPlayerCards);
+   502→  const rewardCards = generateRewardCards(rewardPool, 3);
+   503→
+   504→  // Reset next encounter damage bonus
+   505→  const shouldEvolve = choiceIds.length > 0 && newXp >= getNextXpThreshold(state.player.evolutionTier);
+   506→
+   507→  return {
+   508→    ...state,
+   509→    phase: shouldEvolve ? 'evolution_choice' : 'reward',
+   510→    player: { ...state.player, xp: newXp, gold: state.player.gold + goldReward },
+   511→    rewardCards,
+   512→    evolutionChoices: choiceIds,
+   513→    pendingEvolution: shouldEvolve,
+   514→    nextEncounterDamageBonus: 0, // reset after combat
+   515→    log: [`¡Victoria! +${xpGain} XP, +${goldReward} oro`, ...state.log],
+   516→  };
+   517→}
+   518→
+   519→export function getNextXpThreshold(tier: number): number {
+   520→  return [15, 40, 80][tier] ?? 999;
+   521→}
+   522→
+   523→// ─── Choose evolution ─────────────────────────────────────
+   524→export function chooseEvolution(state: GameState, classPath: ClassPath): GameState {
+   525→  const node = getEvolutionNode(classPath);
+   526→
+   527→  const allCards = [...state.deck, ...state.hand, ...state.discard];
+   528→  let newDeck = allCards.map(card => {
+   529→    const newDefId = transformCard(card.defId, classPath);
+   530→    if (newDefId) {
+   531→      // Starter cards get FREE upgrade on evolution
+   532→      return { ...card, defId: newDefId, upgraded: true };
+   533→    }
+   534→    return card;
+   535→  });
+   536→
+   537→  const newCards: CardInstance[] = node.unlockCardIds.map(defId => ({
+   538→    uid: uid(), defId, upgraded: false,
+   539→  }));
+   540→  newDeck = [...newDeck, ...newCards];
+   541→
+   542→  const evolvedState: GameState = {
+   543→    ...state,
+   544→    phase: 'reward',
+   545→    player: {
+   546→      ...state.player,
+   547→      evolutionTier: node.tier,
+   548→      classPath: classPath,
+   549→      maxHp: node.maxHp,
+   550→      hp: Math.min(state.player.hp + 15, node.maxHp),
+   551→      maxEnergy: node.maxEnergy,
+   552→      energy: node.maxEnergy,
+   553→      drawPerTurn: node.drawPerTurn,
+   554→      strength: state.player.strength + node.bonusStrength,
+   555→    },
+   556→    deck: newDeck,
+   557→    hand: [],
+   558→    discard: [],
+   559→    log: [`¡Evolucionaste a ${node.name}!`, ...state.log],
+   560→    pendingEvolution: false,
+   561→    evolutionChoices: [],
+   562→    currentNodeId: null,
+   563→  };
+   564→
+   565→  return evolvedState;
+   566→}
+   567→
+   568→// ─── Reward card management ───────────────────────────────
+   569→export function addRewardCard(state: GameState, cardUid: string): GameState {
+   570→  const card = state.rewardCards.find(c => c.uid === cardUid);
+   571→  if (!card) return state;
+   572→  // Max deck size: 25 cards
+   573→  if (state.deck.length >= 25) {
+   574→    return {
+   575→      ...state,
+   576→      log: ['Mazo lleno (máximo 25 cartas)', ...state.log],
+   577→    };
+   578→  }
+   579→  return {
+   580→    ...state,
+   581→    deck: [...state.deck, card],
+   582→    rewardCards: state.rewardCards.filter(c => c.uid !== cardUid),
+   583→    log: [`Añadida ${getCardDef(card.defId).name} al mazo`, ...state.log],
+   584→  };
+   585→}
+   586→
+   587→export function confirmRewards(state: GameState): GameState {
+   588→  return returnToMap({ ...state, pickedRewards: [] });
+   589→}
+   590→
+   591→export function skipRewards(state: GameState): GameState {
+   592→  return returnToMap({ ...state, pickedRewards: [] });
+   593→}
+   594→
+   595→// ─── Return to map ────────────────────────────────────────
+   596→export function returnToMap(state: GameState): GameState {
+   597→  const bossDefeated = state.map?.nodes.find(n => n.type === 'boss')?.visited;
+   598→
+   599→  if (bossDefeated) {
+   600→    return { ...state, phase: 'victory', currentNodeId: null };
+   601→  }
+   602→
+   603→  return { ...state, phase: 'map', currentNodeId: null };
+   604→}
+   605→
+   606→// ─── REST ────────────────────────────────────────────────
+   607→
+   608→export function chooseRest(state: GameState, choice: RestChoice): GameState {
+   609→  switch (choice) {
+   610→    case 'heal':
+   611→      return applyRestHeal(state);
+   612→    case 'remove':
+   613→      return { ...state, removingCard: true };
+   614→    case 'upgrade':
+   615→      return { ...state, upgradingCard: true };
+   616→    default:
+   617→      return state;
+   618→  }
+   619→}
+   620→
+   621→function applyRestHeal(state: GameState): GameState {
+   622→  const healAmount = Math.floor(state.player.maxHp * 0.30); // 30% max HP
+   623→  return {
+   624→    ...state,
+   625→    player: {
+   626→      ...state.player,
+   627→      hp: Math.min(state.player.hp + healAmount, state.player.maxHp),
+   628→    },
+   629→    log: [`Descanso: +${healAmount} HP`, ...state.log],
+   630→    phase: 'map',
+   631→    currentNodeId: null,
+   632→  };
+   633→}
+   634→
+   635→export function removeCardFromDeck(state: GameState, cardUid: string): GameState {
+   636→  const card = state.deck.find(c => c.uid === cardUid);
+   637→  if (!card) return state;
+   638→  // Minimum deck size: 3 cards
+   639→  if (state.deck.length <= 3) {
+   640→    return {
+   641→      ...state,
+   642→      log: ['Mínimo 3 cartas en el mazo', ...state.log],
+   643→    };
+   644→  }
+   645→  const def = getCardDef(card.defId);
+   646→  const nextPhase = (state.phase === 'event_result' || state.phase === 'shop') ? state.phase : 'map';
+   647→  return {
+   648→    ...state,
+   649→    deck: state.deck.filter(c => c.uid !== cardUid),
+   650→    removingCard: false,
+   651→    log: [`Eliminada ${def.name} del mazo`, ...state.log],
+   652→    phase: nextPhase,
+   653→    currentNodeId: nextPhase === 'map' ? null : state.currentNodeId,
+   654→  };
+   655→}
+   656→
+   657→export function cancelRestAction(state: GameState): GameState {
+   658→  // Refund gold if canceling a paid shop service
+   659→  if (state.phase === 'shop') {
+   660→    const activeService = state.shopItems.find(
+   661→      i => i.sold && (
+   662→        (i.type === 'remove' && state.removingCard) ||
+   663→        (i.type === 'upgrade' && state.upgradingCard)
+   664→      )
+   665→    );
+   666→    if (activeService) {
+   667→      return {
+   668→        ...state,
+   669→        player: { ...state.player, gold: state.player.gold + activeService.cost },
+   670→        shopItems: state.shopItems.map(i => i.id === activeService.id ? { ...i, sold: false } : i),
+   671→        removingCard: false,
+   672→        upgradingCard: false,
+   673→        restChoice: null,
+   674→      };
+   675→    }
+   676→  }
+   677→  return { ...state, removingCard: false, upgradingCard: false, restChoice: null };
+   678→}
+   679→
+   680→// ─── CARD UPGRADE ─────────────────────────────────────────
+   681→
+   682→export function upgradeCardInDeck(state: GameState, cardUid: string): GameState {
+   683→  const card = state.deck.find(c => c.uid === cardUid);
+   684→  if (!card || card.upgraded) return state;
+   685→  const def = getCardDef(card.defId);
+   686→  if (!def.upgradeBonus) return state;
+   687→
+   688→  const nextPhase = (state.phase === 'event_result' || state.phase === 'shop') ? state.phase : 'map';
+   689→  return {
+   690→    ...state,
+   691→    deck: state.deck.map(c => c.uid === cardUid ? { ...c, upgraded: true } : c),
+   692→    upgradingCard: false,
+   693→    log: [`¡${def.name} mejorada!`, ...state.log],
+   694→    phase: nextPhase,
+   695→    currentNodeId: nextPhase === 'map' ? null : state.currentNodeId,
+   696→  };
+   697→}
+   698→
+   699→// ─── SHOP ─────────────────────────────────────────────────
+   700→
+   701→function enterShop(state: GameState): GameState {
+   702→  // Generate shop cards based on player's class (respects max 2 copies)
+   703→  const shopCards: ShopItem[] = [];
+   704→  const shopCardIds = new Set<string>();
+   705→  for (let i = 0; i < 3; i++) {
+   706→    const card = getRandomClassCard(state.player.classPath, state.deck);
+   707→    if (card && !shopCardIds.has(card.id)) {
+   708→      const cost = card.rarity === 'rare' ? 100 : card.rarity === 'common' ? 60 : 80;
+   709→      shopCards.push({
+   710→        id: `shop_card_${i}`,
+   711→        type: 'card',
+   712→        cardDefId: card.id,
+   713→        cost,
+   714→        sold: false,
+   715→      });
+   716→      shopCardIds.add(card.id);
+   717→    }
+   718→  }
+   719→
+   720→  const allItems: ShopItem[] = [
+   721→    ...shopCards,
+   722→    { id: 'shop_remove', type: 'remove', cost: 75, sold: false },
+   723→    { id: 'shop_upgrade', type: 'upgrade', cost: 60, sold: false },
+   724→  ];
+   725→
+   726→  return {
+   727→    ...state,
+   728→    phase: 'shop',
+   729→    shopItems: allItems,
+   730→  };
+   731→}
+   732→
+   733→export function buyShopItem(state: GameState, itemId: string): GameState {
+   734→  const item = state.shopItems.find(i => i.id === itemId);
+   735→  if (!item || item.sold || state.player.gold < item.cost) return state;
+   736→
+   737→  // Pre-check: don't charge if action is impossible
+   738→  if (item.type === 'remove' && state.deck.length <= 3) {
+   739→    return { ...state, log: ['No puedes eliminar más cartas (mínimo 3)', ...state.log] };
+   740→  }
+   741→  if (item.type === 'upgrade') {
+   742→    const hasUpgradeable = state.deck.some(c => {
+   743→      const d = getCardDef(c.defId);
+   744→      return d.upgradeBonus && !c.upgraded;
+   745→    });
+   746→    if (!hasUpgradeable) {
+   747→      return { ...state, log: ['No hay cartas para mejorar', ...state.log] };
+   748→    }
+   749→  }
+   750→  if (item.type === 'card' && state.deck.length >= 25) {
+   751→    return { ...state, log: ['Mazo lleno (máximo 25 cartas)', ...state.log] };
+   752→  }
+   753→
+   754→  const newState = {
+   755→    ...state,
+   756→    player: { ...state.player, gold: state.player.gold - item.cost },
+   757→    shopItems: state.shopItems.map(i => i.id === itemId ? { ...i, sold: true } : i),
+   758→  };
+   759→
+   760→  switch (item.type) {
+   761→    case 'card': {
+   762→      if (!item.cardDefId) return state;
+   763→      const newCard: CardInstance = { uid: uid(), defId: item.cardDefId, upgraded: false };
+   764→      return {
+   765→        ...newState,
+   766→        deck: [...newState.deck, newCard],
+   767→        log: [`Compraste ${getCardDef(item.cardDefId).name} (-${item.cost}g)`, ...newState.log],
+   768→      };
+   769→    }
+   770→    case 'remove': {
+   771→      return {
+   772→        ...newState,
+   773→        removingCard: true,
+   774→        log: [`Pago por eliminar carta (-${item.cost}g). Selecciona una carta.`, ...newState.log],
+   775→      };
+   776→    }
+   777→    case 'upgrade': {
+   778→      return {
+   779→        ...newState,
+   780→        upgradingCard: true,
+   781→        log: [`Pago por mejorar carta (-${item.cost}g). Selecciona una carta.`, ...newState.log],
+   782→      };
+   783→    }
+   784→    default:
+   785→      return newState;
+   786→  }
+   787→}
+   788→
+   789→export function leaveShop(state: GameState): GameState {
+   790→  return returnToMap({ ...state, shopItems: [], removingCard: false, upgradingCard: false });
+   791→}
+   792→
+   793→// ─── EVENTS ──────────────────────────────────────────────
+   794→
+   795→function enterEvent(state: GameState): GameState {
+   796→  const event = getRandomEvent(() => Math.random());
+   797→  return {
+   798→    ...state,
+   799→    phase: 'event',
+   800→    currentEvent: event,
+   801→    eventOutcome: null,
+   802→  };
+   803→}
+   804→
+   805→export function chooseEventOption(state: GameState, optionId: string): GameState {
+   806→  const option = state.currentEvent?.options.find(o => o.id === optionId);
+   807→  if (!option) return state;
+   808→
+   809→  const p = { ...state.player };
+   810→  const logEntries: string[] = [];
+   811→
+   812→  // Apply option effects
+   813→  if (option.goldChange) {
+   814→    p.gold = Math.max(0, p.gold + option.goldChange);
+   815→    logEntries.push(`Oro: ${option.goldChange > 0 ? '+' : ''}${option.goldChange}`);
+   816→  }
+   817→  if (option.hpChange) {
+   818→    p.hp = Math.min(Math.max(1, p.hp + option.hpChange), p.maxHp);
+   819→    logEntries.push(`HP: ${option.hpChange > 0 ? '+' : ''}${option.hpChange}`);
+   820→  }
+   821→  if (option.maxHpChange) {
+   822→    p.maxHp = Math.max(10, p.maxHp + option.maxHpChange);
+   823→    if (option.maxHpChange < 0) {
+   824→      p.hp = Math.min(p.hp, p.maxHp);
+   825→    }
+   826→    logEntries.push(`HP máximo: ${option.maxHpChange > 0 ? '+' : ''}${option.maxHpChange}`);
+   827→  }
+   828→  if (option.nextEncounterDamageBonus) {
+   829→    logEntries.push(`Próximo combate: ${option.nextEncounterDamageBonus > 0 ? '+' : ''}${option.nextEncounterDamageBonus} daño`);
+   830→  }
+   831→
+   832→  let newDeck = [...state.deck];
+   833→
+   834→  // Add card reward (respects 25-card max)
+   835→  if (option.cardReward && newDeck.length < 25) {
+   836→    const newCard: CardInstance = { uid: uid(), defId: option.cardReward, upgraded: false };
+   837→    newDeck = [...newDeck, newCard];
+   838→    try {
+   839→      logEntries.push(`Obtuviste: ${getCardDef(option.cardReward).name}`);
+   840→    } catch {
+   841→      logEntries.push(`Obtuviste una carta misteriosa`);
+   842→    }
+   843→  } else if (option.cardReward && newDeck.length >= 25) {
+   844→    logEntries.push('Mazo lleno, no se añadió la carta');
+   845→  }
+   846→
+   847→  // Add curse card (max 2 copies)
+   848→  if (option.curseCard) {
+   849→    const curseCount = newDeck.filter(c => c.defId === option.curseCard).length;
+   850→    if (curseCount < 2) {
+   851→      const curseCard: CardInstance = { uid: uid(), defId: option.curseCard, upgraded: false };
+   852→      newDeck = [...newDeck, curseCard];
+   853→      try {
+   854→        logEntries.push(`Maldición: ${getCardDef(option.curseCard).name} añadida al mazo`);
+   855→      } catch {
+   856→        logEntries.push(`¡Maldición añadida al mazo!`);
+   857→      }
+   858→    }
+   859→  }
+   860→
+   861→  // If option allows removing a card, go to remove mode
+   862→  // But check if deck only has curses — can't remove those at events
+   863→  if (option.canRemoveCard) {
+   864→    const hasNonCurse = newDeck.some(c => getCardDef(c.defId).rarity !== 'curse');
+   865→    if (!hasNonCurse) {
+   866→      return {
+   867→        ...state,
+   868→        phase: 'event_result',
+   869→        player: p,
+   870→        deck: newDeck,
+   871→        eventOutcome: option,
+   872→        removingCard: false,
+   873→        log: [...logEntries, 'Solo quedan maldiciones — ve a descanso para eliminarlas', ...state.log],
+   874→      };
+   875→    }
+   876→    return {
+   877→      ...state,
+   878→      phase: 'event_result',
+   879→      player: p,
+   880→      deck: newDeck,
+   881→      eventOutcome: option,
+   882→      removingCard: true,
+   883→      log: [...logEntries, ...state.log],
+   884→    };
+   885→  }
+   886→
+   887→  if (option.canUpgradeCard) {
+   888→    return {
+   889→      ...state,
+   890→      phase: 'event_result',
+   891→      player: p,
+   892→      deck: newDeck,
+   893→      eventOutcome: option,
+   894→      upgradingCard: true,
+   895→      log: [...logEntries, ...state.log],
+   896→    };
+   897→  }
+   898→
+   899→  return {
+   900→    ...state,
+   901→    phase: 'event_result',
+   902→    player: p,
+   903→    deck: newDeck,
+   904→    eventOutcome: option,
+   905→    nextEncounterDamageBonus: state.nextEncounterDamageBonus + (option.nextEncounterDamageBonus || 0),
+   906→    log: [...logEntries, ...state.log],
+   907→  };
+   908→}
+   909→
+   910→export function finishEvent(state: GameState): GameState {
+   911→  return returnToMap({
+   912→    ...state,
+   913→    currentEvent: null,
+   914→    eventOutcome: null,
+   915→    removingCard: false,
+   916→    upgradingCard: false,
+   917→  });
+   918→}
+   919→
+   920→// ─── TREASURE ────────────────────────────────────────────
+   921→
+   922→function resolveTreasure(state: GameState): GameState {
+   923→  const { gold, hp } = getTreasureReward();
+   924→  const p = { ...state.player };
+   925→  const logEntries: string[] = [];
+   926→
+   927→  p.gold += gold;
+   928→  logEntries.push(`Tesoro: +${gold} oro`);
+   929→
+   930→  if (hp) {
+   931→    p.hp = Math.min(p.hp + hp, p.maxHp);
+   932→    logEntries.push(`Tesoro: +${hp} HP`);
+   933→  }
+   934→
+   935→  return {
+   936→    ...state,
+   937→    phase: 'event_result',
+   938→    player: p,
+   939→    eventOutcome: {
+   940→      id: 'treasure',
+   941→      text: 'Tesoro encontrado',
+   942→      narrative: `Encontrás un cofre escondido entre las rocas. Dentro hay ${gold} monedas de oro${hp ? ` y una poción que cura ${hp} HP` : ''}.`,
+   943→    },
+   944→    log: [...logEntries, ...state.log],
+   945→  };
+   946→}
+   947→
+   948→// ─── Generate reward cards ───────────────────────────────
+   949→function generateRewardCards(pool: CardDef[], count: number): CardInstance[] {
+   950→  if (pool.length === 0) return [];
+   951→  const shuffled = shuffle([...pool]);
+   952→  return shuffled.slice(0, count).map(def => ({ uid: uid(), defId: def.id, upgraded: false }));
+   953→}
+   954→
+   955→// ─── Shuffle ──────────────────────────────────────────────
+   956→function shuffle<T>(array: T[]): T[] {
+   957→  for (let i = array.length - 1; i > 0; i--) {
+   958→    const j = Math.floor(Math.random() * (i + 1));
+   959→    [array[i], array[j]] = [array[j], array[i]];
+   960→  }
+   961→  return array;
+   962→}
+   963→
+   964→// ─── Final victory check ───────────────────────────────────
+   965→export function checkFinalVictory(state: GameState): boolean {
+   966→  const bossNode = state.map?.nodes.find(n => n.type === 'boss');
+   967→  if (!bossNode || !bossNode.visited) return false;
+   968→  return !state.enemy || state.enemy.hp <= 0;
+   969→}
+   970→
+   971→

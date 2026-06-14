@@ -16,9 +16,7 @@ interface GameStore extends GameState {
   setViewingDeck: (v: boolean) => void;
 
   // Map
-  selectNode: (nodeId: string) => void;
   selectAndEnterNode: (nodeId: string) => void;
-  enterNode: () => void;
 
   // Rewards
   toggleRewardCard: (cardUid: string) => void;
@@ -48,7 +46,27 @@ interface GameStore extends GameState {
   continueFromResult: () => void;
 }
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  // Helper: resolve combat end after player action or end of turn
+  function resolveCombatEnd(cs: GameState) {
+    const result = engine.checkCombatEnd(cs);
+    if (result === 'enemy_dead') {
+      if (engine.checkFinalVictory(cs)) {
+        const victoryState = engine.handleVictory(cs);
+        set({ ...victoryState, phase: 'victory', isAnimating: false });
+      } else {
+        const victoryState = engine.handleVictory(cs);
+        set({ ...victoryState, isAnimating: false });
+      }
+    } else if (result === 'player_dead') {
+      set({ phase: 'gameover', isAnimating: false });
+    } else {
+      const nextTurn = engine.startTurn(cs);
+      set({ ...nextTurn, isAnimating: false });
+    }
+  }
+
+  return {
   phase: 'menu',
   player: {
     hp: 0, maxHp: 0, energy: 0, maxEnergy: 0,
@@ -94,27 +112,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     setTimeout(() => {
       const cs = get();
-      const result = engine.checkCombatEnd(cs);
-      if (result === 'enemy_dead') {
-        if (engine.checkFinalVictory(cs)) {
-          // Check if it's a boss - always go to victory screen
-          const node = cs.map?.nodes.find(n => n.id === cs.currentNodeId);
-          if (node?.type === 'boss') {
-            const victoryState = engine.handleVictory(cs);
-            set({ ...victoryState, phase: 'victory', isAnimating: false });
-          } else {
-            const victoryState = engine.handleVictory(cs);
-            set({ ...victoryState, isAnimating: false });
-          }
-        } else {
-          const victoryState = engine.handleVictory(cs);
-          set({ ...victoryState, isAnimating: false });
-        }
-      } else if (result === 'player_dead') {
-        set({ phase: 'gameover', isAnimating: false });
-      } else {
-        set({ isAnimating: false });
-      }
+      resolveCombatEnd(cs);
     }, 400);
   },
 
@@ -123,44 +121,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.phase !== 'battle' || state.isAnimating) return;
     set({ isAnimating: true });
 
-    const afterDiscard: GameState = { ...state, hand: [], discard: [...state.discard, ...state.hand] };
-    let newState = engine.endPlayerTurn(afterDiscard);
+    // engine.endPlayerTurn handles the discard internally
+    let newState = engine.endPlayerTurn(state);
     set(newState);
 
     setTimeout(() => {
       const cs = get();
-      const result = engine.checkCombatEnd(cs);
-      if (result === 'enemy_dead') {
-        if (engine.checkFinalVictory(cs)) {
-          const node = cs.map?.nodes.find(n => n.id === cs.currentNodeId);
-          if (node?.type === 'boss') {
-            const victoryState = engine.handleVictory(cs);
-            set({ ...victoryState, phase: 'victory', isAnimating: false });
-          } else {
-            const victoryState = engine.handleVictory(cs);
-            set({ ...victoryState, isAnimating: false });
-          }
-        } else {
-          const victoryState = engine.handleVictory(cs);
-          set({ ...victoryState, isAnimating: false });
-        }
-      } else if (result === 'player_dead') {
-        set({ phase: 'gameover', isAnimating: false });
-      } else {
-        const nextTurn = engine.startTurn(cs);
-        set({ ...nextTurn, isAnimating: false });
-      }
+      resolveCombatEnd(cs);
     }, 600);
   },
 
   // ─── Map ─────────────────────────────────────────────
-
-  selectNode: (nodeId: string) => {
-    const state = get();
-    if (state.phase !== 'map') return;
-    const newState = engine.selectMapNode(state, nodeId);
-    set(newState);
-  },
 
   selectAndEnterNode: (nodeId: string) => {
     const state = get();
@@ -168,13 +139,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let s = engine.selectMapNode(state, nodeId);
     s = engine.enterNode(s);
     set(s);
-  },
-
-  enterNode: () => {
-    const state = get();
-    if (state.phase !== 'map' || !state.currentNodeId) return;
-    const newState = engine.enterNode(state);
-    set(newState);
   },
 
   // ─── Rewards ─────────────────────────────────────────
@@ -201,6 +165,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   skipRewards: () => {
     const state = get();
+    // If we came from evolution_choice, we need to generate rewards first
+    if (state.phase === 'evolution_choice') {
+      set({ ...state, phase: 'reward' });
+      return;
+    }
     const newState = engine.skipRewards(state);
     set(newState);
   },
@@ -281,4 +250,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set(engine.returnToMap(state));
     }
   },
-}));
+  };
+});

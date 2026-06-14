@@ -1,10 +1,13 @@
 'use client';
 
 import { useGameStore } from '@/store/gameStore';
+import { getEnemyDef } from '@/game/data/enemies';
 
 export function EnemyDisplay() {
   const enemy = useGameStore(s => s.enemy);
+  const player = useGameStore(s => s.player);
   const phase = useGameStore(s => s.phase);
+  const nextEncounterDamageBonus = useGameStore(s => s.nextEncounterDamageBonus);
 
   if (!enemy || phase !== 'battle') return null;
 
@@ -17,6 +20,25 @@ export function EnemyDisplay() {
   };
 
   const hasEffects = enemy.burn > 0 || enemy.poison > 0 || enemy.freeze > 0 || enemy.weaken > 0;
+
+  // Enemy intent
+  let intentEmoji = '⚔️';
+  let intentText = '';
+  let intentDmg = 0;
+  try {
+    const def = getEnemyDef(enemy.defId);
+    intentDmg = Math.max(0, def.damage - enemy.weaken);
+    if (nextEncounterDamageBonus) intentDmg += nextEncounterDamageBonus;
+    if (enemy.freeze > 0) {
+      intentEmoji = '❄️';
+      intentText = 'Congelado';
+    } else if (intentDmg > 0) {
+      intentEmoji = '⚔️';
+      intentText = `${intentDmg} dmg`;
+    }
+  } catch {
+    // ignore
+  }
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -46,6 +68,27 @@ export function EnemyDisplay() {
       <h2 className="text-white/90 text-lg sm:text-xl font-semibold tracking-wide">
         {enemy.name}
       </h2>
+
+      {/* Enemy intent */}
+      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+        <span className="text-sm">{intentEmoji}</span>
+        <span className="text-xs text-white/50">{intentText}</span>
+        {intentDmg > 0 && (
+          <span className="text-[10px] text-red-300/70 bg-red-950/40 px-1.5 py-0.5 rounded">
+            -{intentDmg}
+          </span>
+        )}
+        {player.dodgeCount > 0 && intentDmg > 0 && (
+          <span className="text-[10px] text-emerald-300/70 bg-emerald-950/40 px-1.5 py-0.5 rounded">
+            🌀 Esquiva
+          </span>
+        )}
+        {player.block > 0 && intentDmg > 0 && (
+          <span className="text-[10px] text-amber-300/70 bg-amber-950/40 px-1.5 py-0.5 rounded">
+            🛡 Bloque
+          </span>
+        )}
+      </div>
 
       <div className="w-48 sm:w-64">
         <div className="flex justify-between text-xs text-white/50 mb-1">

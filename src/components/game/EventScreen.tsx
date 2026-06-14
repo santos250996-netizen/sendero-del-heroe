@@ -106,6 +106,11 @@ export function EventScreen() {
                           ⚠️ +{option.nextEncounterDamageBonus} dmg próximo
                         </span>
                       )}
+                      {option.nextEncounterDamageBonus && option.nextEncounterDamageBonus < 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-300/70">
+                          🛡️ {option.nextEncounterDamageBonus} dmg próximo (ventaja)
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { type CardDef, type TransformMap, type ClassPath, type CardUpgradeBonus } from '../types';
+import { getClassLineage } from './evolutions';
 
 // ─── Upgrade bonus presets ────────────────────────────
 const dmg3: CardUpgradeBonus = { bonusDamage: 3 };
@@ -414,22 +415,6 @@ export function getRandomClassCard(classPath: string, deck?: { defId: string; up
   });
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function getClassLineage(classPath: string): string[] {
-  const lineage: string[] = [classPath];
-  let current = classPath;
-  const nodes: Record<string, { parent?: string }> = {
-    mago: { parent: 'vagabundo' }, picaro: { parent: 'vagabundo' }, guerrero: { parent: 'vagabundo' },
-    hechicero: { parent: 'mago' }, brujo: { parent: 'mago' },
-    asesino: { parent: 'picaro' }, bardo: { parent: 'picaro' },
-    paladin: { parent: 'guerrero' }, berserker: { parent: 'guerrero' },
-  };
-  while (nodes[current]?.parent) {
-    lineage.unshift(nodes[current].parent!);
-    current = nodes[current].parent!;
-  }
-  return lineage;
 }
 
 // ─── Card Emoji Map ─────────────────────────────────────

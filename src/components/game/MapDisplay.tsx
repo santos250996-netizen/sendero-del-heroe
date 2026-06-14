@@ -30,9 +30,9 @@ const nodeVisitedColors: Record<NodeType, string> = {
 
 function MapNodeButton({ node }: { node: MapNode }) {
   const selectAndEnterNode = useGameStore(s => s.selectAndEnterNode);
-  const visitedNodeIds = useGameStore(s => s.map?.visitedNodeIds || new Set());
+  const visitedNodeIds = useGameStore(s => s.map?.visitedNodeIds || []);
 
-  const isVisited = visitedNodeIds.has(node.id);
+  const isVisited = visitedNodeIds.includes(node.id);
   const isAvailable = node.available && !isVisited;
 
   return (
@@ -96,7 +96,7 @@ export function MapDisplay() {
           className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-lg text-white/70 text-xs hover:bg-white/20 hover:border-white/30 transition-all flex items-center gap-1.5"
         >
           🃏 {deck.length}
-          {deck.length > 15 && <span className="text-orange-400">⚠</span>}
+          {deck.length > 15 && <span className="text-orange-400" title="Mazo pesado: -1 robo por turno">⚠</span>}
         </motion.button>
       </div>
       <p className="text-white/40 text-xs mb-4">

@@ -41,7 +41,7 @@ export interface MapNode {
 export interface GameMap {
   nodes: MapNode[];     // flat list, ordered by layer
   currentLayer: number; // 0-9
-  visitedNodeIds: Set<string>;
+  visitedNodeIds: string[];
   maxLayer: number;
 }
 

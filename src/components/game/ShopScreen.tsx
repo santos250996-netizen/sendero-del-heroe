@@ -2,7 +2,7 @@
 
 import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
-import { getCardDef, CARD_EMOJI, CLASS_CARD_BORDER } from '@/game/data/cards';
+import { getCardDef, CARD_EMOJI } from '@/game/data/cards';
 import { DeckCardPicker } from './CardDisplay';
 
 export function ShopScreen() {

@@ -4,15 +4,13 @@ import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
 import { EnemyDisplay } from './EnemyDisplay';
 import { PlayerHUD } from './PlayerHUD';
-import { HandDisplay, RewardCard } from './CardDisplay';
+import { HandDisplay, RewardCard, DeckCardPicker } from './CardDisplay';
 import { EvolutionChoice } from './EvolutionChoice';
 import { MapDisplay } from './MapDisplay';
 import { EventScreen } from './EventScreen';
 import { RestScreen } from './RestScreen';
 import { ShopScreen } from './ShopScreen';
-import { EVOLUTION_TREE } from '@/game/data/evolutions';
-import { getEvolutionNode } from '@/game/data/evolutions';
-import { DeckCardPicker } from './CardDisplay';
+import { EVOLUTION_TREE, getEvolutionNode } from '@/game/data/evolutions';
 import { DeckViewer } from './DeckViewer';
 
 export function GameScreen() {
@@ -86,8 +84,8 @@ export function GameScreen() {
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 pb-48 sm:pb-52">
             <PlayerHUD />
-            <div className="w-full max-w-md max-h-20 overflow-y-auto">
-              {log.slice(0, 5).map((entry, i) => (
+            <div className="w-full max-w-md max-h-28 overflow-y-auto">
+              {log.slice(0, 10).map((entry, i) => (
                 <p key={i} className={`text-center text-xs ${i === 0 ? 'text-white/60' : 'text-white/25'}`}>{entry}</p>
               ))}
             </div>

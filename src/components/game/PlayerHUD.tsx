@@ -11,10 +11,8 @@ export function PlayerHUD() {
   const deck = useGameStore(s => s.deck);
   const discard = useGameStore(s => s.discard);
   const hand = useGameStore(s => s.hand);
-  const pendingEvolution = useGameStore(s => s.pendingEvolution);
   const gold = useGameStore(s => s.player.gold);
   const map = useGameStore(s => s.map);
-  const currentNodeId = useGameStore(s => s.currentNodeId);
 
   if (phase === 'menu') return null;
 
@@ -24,9 +22,9 @@ export function PlayerHUD() {
   const nextThreshold = getNextXpThreshold(player.evolutionTier);
   const xpPercent = Math.min(100, (player.xp / nextThreshold) * 100);
 
-  const currentLayer = map?.currentLayer || 0;
-  const maxLayer = map?.maxLayer || 9;
-  const progressPercent = currentLayer >= maxLayer ? 100 : (currentLayer / maxLayer) * 100;
+  const visitedCount = map?.nodes.filter(n => n.visited).length || 0;
+  const totalNodes = map?.nodes.length || 10;
+  const progressPercent = visitedCount >= totalNodes ? 100 : (visitedCount / totalNodes) * 100;
 
   // Hide energy/XP in non-battle phases
   const showBattleStats = phase === 'battle';
@@ -64,7 +62,7 @@ export function PlayerHUD() {
         <div>
           <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
             <span>🗺️ Progreso</span>
-            <span>Capa {currentLayer}/{maxLayer}</span>
+            <span>Capa {visitedCount}/{totalNodes}</span>
           </div>
           <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-white/10">
             <div

@@ -2,22 +2,24 @@ import {
   type GameState, type CardInstance, type CardDef, type ClassPath, type MapNode, type NodeType,
   type GameEvent, type EventOption, type ShopItem, type RestChoice,
 } from './types';
-import { getCardDef, getEffectiveCardDef, transformCard, getRewardPool, ALL_CARDS, getRandomClassCard } from './data/cards';
-import { getEvolutionNode, getEvolutionChoices, EVOLUTION_TREE } from './data/evolutions';
+import { getCardDef, getEffectiveCardDef, transformCard, getRewardPool, getRandomClassCard } from './data/cards';
+import { getEvolutionNode, getEvolutionChoices, getClassLineage, EVOLUTION_TREE } from './data/evolutions';
 import { getEnemyForEncounter, getEnemyDef } from './data/enemies';
 import {
-  generateMap, visitNode, getAvailableNodes, isMapComplete,
+  generateMap, visitNode,
   getRandomEvent, getCombatGoldReward, getTreasureReward,
 } from './data/map';
 
 // ─── UID Generator ────────────────────────────────────────
 let uidCounter = 0;
+function resetUidCounter() { uidCounter = 0; }
 function uid(): string {
   return 'c' + (++uidCounter) + '_' + Date.now().toString(36);
 }
 
 // ─── Create new game ─────────────────────────────────────
 export function createNewGame(): GameState {
+  resetUidCounter();
   const evo = getEvolutionNode('vagabundo');
   const starterCards: CardInstance[] = [];
   for (let i = 0; i < 3; i++) {
@@ -361,15 +363,7 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
   return s;
 }
 
-function getClassLineage(classPath: string): string[] {
-  const lineage: string[] = [classPath];
-  let current = classPath;
-  while (EVOLUTION_TREE[current]?.parent) {
-    lineage.unshift(EVOLUTION_TREE[current].parent!);
-    current = EVOLUTION_TREE[current].parent!;
-  }
-  return lineage;
-}
+// getClassLineage imported from evolutions.ts
 
 // ─── End player turn ──────────────────────────────────────
 export function endPlayerTurn(state: GameState): GameState {
@@ -426,14 +420,19 @@ function enemyAction(state: GameState): GameState {
     return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
   }
 
-  e.block = Math.min(e.block + enemyDef.block, 15);
+  // Enemy block resets each turn (gains base block, doesn't accumulate)
+  e.block = enemyDef.block;
 
   let dmg = Math.max(0, enemyDef.damage - e.weaken);
 
-  // Apply next encounter damage bonus (from events)
+  // Apply next encounter damage bonus (from events) — consumed once on first enemy turn
   if (state.nextEncounterDamageBonus !== 0) {
     dmg += state.nextEncounterDamageBonus;
-    logEntries.push(`¡Maldición del altar: +${state.nextEncounterDamageBonus} daño!`);
+    if (state.nextEncounterDamageBonus > 0) {
+      logEntries.push(`¡Maldición del altar: +${state.nextEncounterDamageBonus} daño!`);
+    } else {
+      logEntries.push(`¡Ventaja del mercader: ${state.nextEncounterDamageBonus} daño al enemigo!`);
+    }
   }
 
   // Dodge check (before block)
@@ -454,7 +453,7 @@ function enemyAction(state: GameState): GameState {
   p.hp -= dmg;
   logEntries.push(`${e.name} ataca por ${dmg} daño`);
 
-  return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
+  return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
 }
 
 // ─── Check combat end ──────────────────────────────────────
@@ -489,7 +488,7 @@ export function handleVictory(state: GameState): GameState {
 
   return {
     ...state,
-    phase: 'reward',
+    phase: shouldEvolve ? 'evolution_choice' : 'reward',
     player: { ...state.player, xp: newXp, gold: state.player.gold + goldReward },
     rewardCards,
     evolutionChoices: choiceIds,
@@ -524,7 +523,7 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
 
   const evolvedState: GameState = {
     ...state,
-    phase: 'map',
+    phase: 'reward',
     player: {
       ...state.player,
       evolutionTier: node.tier,
@@ -809,13 +808,13 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
   if (option.canRemoveCard) {
     const hasNonCurse = newDeck.some(c => getCardDef(c.defId).rarity !== 'curse');
     if (!hasNonCurse) {
-      // Only curses in deck, can't remove at event — go straight to continue
       return {
         ...state,
         phase: 'event_result',
         player: p,
         deck: newDeck,
         eventOutcome: option,
+        removingCard: false,
         log: [...logEntries, 'Solo quedan maldiciones — ve a descanso para eliminarlas', ...state.log],
       };
     }
@@ -825,6 +824,7 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
       player: p,
       deck: newDeck,
       eventOutcome: option,
+      removingCard: true,
       log: [...logEntries, ...state.log],
     };
   }
@@ -908,16 +908,8 @@ function shuffle<T>(array: T[]): T[] {
 
 // ─── Final victory check ───────────────────────────────────
 export function checkFinalVictory(state: GameState): boolean {
-  return isMapComplete(state.map!);
+  const bossNode = state.map?.nodes.find(n => n.type === 'boss');
+  if (!bossNode || !bossNode.visited) return false;
+  return !state.enemy || state.enemy.hp <= 0;
 }
 
-// ─── Map state helpers ─────────────────────────────────────
-export function getMapState(state: GameState) {
-  return {
-    nodes: state.map?.nodes || [],
-    currentLayer: state.map?.currentLayer || 0,
-    currentNodeId: state.currentNodeId,
-    maxLayer: state.map?.maxLayer || 9,
-    visitedNodeIds: state.map?.visitedNodeIds || new Set(),
-  };
-}

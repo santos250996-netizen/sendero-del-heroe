@@ -114,7 +114,7 @@ export function generateMap(layer9IsBoss: boolean = true): GameMap {
   return {
     nodes,
     currentLayer: 0,
-    visitedNodeIds: new Set(),
+    visitedNodeIds: [],
     maxLayer,
   };
 }
@@ -129,8 +129,8 @@ export function visitNode(map: GameMap, nodeId: string): GameMap {
   const node = map.nodes.find(n => n.id === nodeId);
   if (!node) return map;
 
-  const newVisited = new Set(map.visitedNodeIds);
-  newVisited.add(nodeId);
+  const newVisited = [...map.visitedNodeIds];
+  if (!newVisited.includes(nodeId)) newVisited.push(nodeId);
 
   const newNodes = map.nodes.map(n => {
     if (n.id === nodeId) return { ...n, visited: true, available: false };

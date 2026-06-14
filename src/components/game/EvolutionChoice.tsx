@@ -18,10 +18,12 @@ export function EvolutionChoice() {
   });
 
   if (validChoices.length === 0) {
-    // Fallback: skip evolution and go to next encounter
-    const skipEvolution = useGameStore.getState().skipRewards;
-    // Use queueMicrotask to avoid state update during render
-    if (typeof window !== 'undefined') queueMicrotask(() => skipEvolution());
+    // Fallback: skip evolution and go to reward screen
+    if (typeof window !== 'undefined') {
+      queueMicrotask(() => {
+        useGameStore.getState().skipRewards();
+      });
+    }
     return null;
   }
 
@@ -35,9 +37,17 @@ export function EvolutionChoice() {
         <h2 className="text-3xl sm:text-4xl font-bold text-amber-300 text-center mb-2">
           Elige tu Camino
         </h2>
-        <p className="text-white/50 text-center mb-8 text-sm">
+        <p className="text-white/50 text-center mb-4 text-sm">
           Tu evolución define tus cartas y habilidades.
         </p>
+        <button
+          onClick={() => {
+            useGameStore.getState().skipRewards();
+          }}
+          className="mx-auto block text-xs text-white/30 hover:text-white/50 underline underline-offset-2 mb-6 transition-colors"
+        >
+          Saltar evolución → ver recompensas
+        </button>
 
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center">
           {validChoices.map((classPath, i) => {

@@ -2,7 +2,6 @@
 
 import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
-import { getCardDef, getEffectiveCardDef, CARD_EMOJI, CLASS_CARD_BORDER } from '@/game/data/cards';
 import { DeckCardPicker } from './CardDisplay';
 
 export function RestScreen() {

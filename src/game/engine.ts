@@ -132,7 +132,7 @@ function enterCombat(state: GameState, node: MapNode): GameState {
       dodgeCount: 0,
       attackBuffTurn: 0,
     },
-    deck: [...state.deck, ...state.discard],
+    deck: [...state.deck, ...state.discard, ...state.hand],
     discard: [],
     hand: [],
     log: [`--- Encuentro ${encounter}: ${enemyDef.name} ---`, ...state.log],

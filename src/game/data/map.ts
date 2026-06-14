@@ -132,13 +132,16 @@ export function visitNode(map: GameMap, nodeId: string): GameMap {
   const newVisited = new Set(map.visitedNodeIds);
   newVisited.add(nodeId);
 
-  const newNodes = map.nodes.map(n => ({
-    ...n,
-    visited: n.id === nodeId ? true : n.visited,
-    available: n.layer === node.layer + 1 ? true : n.available,
-  }));
+  const newNodes = map.nodes.map(n => {
+    if (n.id === nodeId) return { ...n, visited: true, available: false };
+    // Same layer: sibling node becomes unavailable (only 1 path per layer)
+    if (n.layer === node.layer) return { ...n, available: false, visited: n.visited };
+    // Next layer: both columns become available for the player to choose
+    if (n.layer === node.layer + 1) return { ...n, available: true };
+    return n;
+  });
 
-  // All nodes in next layer become available
+  // Only the next layer's nodes become available
   const nextLayer = node.layer + 1;
 
   return {

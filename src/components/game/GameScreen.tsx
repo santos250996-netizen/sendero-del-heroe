@@ -34,16 +34,9 @@ export function GameScreen() {
   const eventOutcome = useGameStore(s => s.eventOutcome);
   const removingCard = useGameStore(s => s.removingCard);
   const upgradingCard = useGameStore(s => s.upgradingCard);
-  const currentNodeId = useGameStore(s => s.currentNodeId);
   const map = useGameStore(s => s.map);
-  const enterNode = useGameStore(s => s.enterNode);
 
   const tierOneNodes = Object.values(EVOLUTION_TREE).filter(n => n.tier === 1);
-
-  const selectedNode = map?.nodes.find(n => n.id === currentNodeId);
-  const selectedNodeName = selectedNode
-    ? `${selectedNode.type === 'boss' ? '🐉' : selectedNode.type === 'combat' ? '⚔️' : selectedNode.type === 'elite' ? '💀' : selectedNode.type === 'rest' ? '🛏️' : selectedNode.type === 'shop' ? '🏪' : selectedNode.type === 'event' ? '❓' : '💎'} ${selectedNode.type === 'boss' ? 'Jefe Final' : selectedNode.type === 'combat' ? 'Combate' : selectedNode.type === 'elite' ? 'Élite' : selectedNode.type === 'rest' ? 'Descanso' : selectedNode.type === 'shop' ? 'Comercio' : selectedNode.type === 'event' ? 'Evento' : 'Tesoro'}`
-    : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0d0d1a] via-[#111128] to-[#0a0a15] text-white flex flex-col">
@@ -82,29 +75,6 @@ export function GameScreen() {
           <div className="flex-1">
             <MapDisplay />
           </div>
-          {/* Bottom bar: enter button */}
-          {currentNodeId && (
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="fixed bottom-0 left-0 right-0 z-30 p-4"
-              style={{
-                background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%)',
-              }}
-            >
-              <div className="max-w-md mx-auto text-center">
-                <p className="text-white/60 text-xs mb-2">Nodo seleccionado: <span className="text-white/80 font-medium">{selectedNodeName}</span></p>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={enterNode}
-                  className="px-10 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 transition-shadow"
-                >
-                  Entrar al Nodo
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
         </div>
       )}
 

@@ -28,49 +28,36 @@ const nodeVisitedColors: Record<NodeType, string> = {
   evolution: 'from-stone-700/30 to-stone-800/30 border-stone-500/20',
 };
 
-function MapNodeButton({ node, isSelected }: { node: MapNode; isSelected: boolean }) {
-  const selectNode = useGameStore(s => s.selectNode);
-  const enterNode = useGameStore(s => s.enterNode);
-  const currentNodeId = useGameStore(s => s.currentNodeId);
-  const phase = useGameStore(s => s.phase);
+function MapNodeButton({ node }: { node: MapNode }) {
+  const selectAndEnterNode = useGameStore(s => s.selectAndEnterNode);
   const visitedNodeIds = useGameStore(s => s.map?.visitedNodeIds || new Set());
 
   const isVisited = visitedNodeIds.has(node.id);
   const isAvailable = node.available && !isVisited;
-  const isCurrent = node.id === currentNodeId;
 
   return (
     <motion.button
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      whileHover={isAvailable && phase === 'map' ? { scale: 1.08, y: -2 } : {}}
-      whileTap={isAvailable && phase === 'map' ? { scale: 0.95 } : {}}
+      whileHover={isAvailable ? { scale: 1.08, y: -2 } : {}}
+      whileTap={isAvailable ? { scale: 0.95 } : {}}
       onClick={() => {
-        if (isCurrent && phase === 'map') {
-          enterNode();
-        } else if (isAvailable && phase === 'map') {
-          selectNode(node.id);
+        if (isAvailable) {
+          selectAndEnterNode(node.id);
         }
       }}
       className={`relative w-[72px] sm:w-[90px] h-[72px] sm:h-[90px] rounded-xl border flex flex-col items-center justify-center gap-0.5 transition-all duration-200 select-none ${
         isVisited
           ? `${nodeVisitedColors[node.type]} opacity-40`
-          : isCurrent
-            ? `${nodeColors[node.type]} ring-2 ring-white/60 shadow-lg scale-110`
-            : isAvailable
-              ? `${nodeColors[node.type]} cursor-pointer`
-              : 'from-stone-800/20 to-stone-900/20 border-stone-600/10 opacity-30 cursor-not-allowed'
+          : isAvailable
+            ? `${nodeColors[node.type]} cursor-pointer`
+            : 'from-stone-800/20 to-stone-900/20 border-stone-600/10 opacity-30 cursor-not-allowed'
       }`}
     >
       <span className="text-xl sm:text-2xl">{NODE_EMOJI[node.type]}</span>
       <span className="text-[8px] sm:text-[10px] text-white/70 font-medium leading-tight">
         {NODE_LABEL[node.type]}
       </span>
-      {isCurrent && (
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-amber-500/90 text-black text-[8px] font-bold rounded-full">
-          IR
-        </div>
-      )}
       {isVisited && (
         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-stone-600 flex items-center justify-center text-[8px]">
           ✓
@@ -83,7 +70,6 @@ function MapNodeButton({ node, isSelected }: { node: MapNode; isSelected: boolea
 export function MapDisplay() {
   const map = useGameStore(s => s.map);
   const phase = useGameStore(s => s.phase);
-  const currentNodeId = useGameStore(s => s.currentNodeId);
   const setViewingDeck = useGameStore(s => s.setViewingDeck);
   const deck = useGameStore(s => s.deck);
 
@@ -114,7 +100,7 @@ export function MapDisplay() {
         </motion.button>
       </div>
       <p className="text-white/40 text-xs mb-4">
-        Selecciona un nodo y presiona IR para entrar
+        Toca un nodo para entrar
       </p>
 
       <div className="w-full max-w-sm space-y-1 overflow-y-auto max-h-[calc(100vh-280px)] pb-4">
@@ -136,7 +122,7 @@ export function MapDisplay() {
                   {layerIdx > 0 && (
                     <div className="w-px h-3 bg-white/15" />
                   )}
-                  <MapNodeButton node={node} isSelected={node.id === currentNodeId} />
+                  <MapNodeButton node={node} />
                 </div>
               ))}
             </div>

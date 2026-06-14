@@ -17,6 +17,7 @@ interface GameStore extends GameState {
 
   // Map
   selectNode: (nodeId: string) => void;
+  selectAndEnterNode: (nodeId: string) => void;
   enterNode: () => void;
 
   // Rewards
@@ -158,6 +159,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.phase !== 'map') return;
     const newState = engine.selectMapNode(state, nodeId);
     set(newState);
+  },
+
+  selectAndEnterNode: (nodeId: string) => {
+    const state = get();
+    if (state.phase !== 'map') return;
+    let s = engine.selectMapNode(state, nodeId);
+    s = engine.enterNode(s);
+    set(s);
   },
 
   enterNode: () => {

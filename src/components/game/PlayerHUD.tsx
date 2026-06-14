@@ -5,17 +5,15 @@ import { getEvolutionNode, getClassColor, getClassEmoji } from '@/game/data/evol
 import { getNextXpThreshold } from '@/game/engine';
 
 export function PlayerHUD() {
-  // Single subscription selector for better performance
-  const { player, phase, encounter, deck, discard, hand, map, gold } = useGameStore(s => ({
-    player: s.player,
-    phase: s.phase,
-    encounter: s.encounter,
-    deck: s.deck,
-    discard: s.discard,
-    hand: s.hand,
-    map: s.map,
-    gold: s.player.gold,
-  }));
+  // Individual selectors to avoid new object reference on each render
+  const player = useGameStore(s => s.player);
+  const phase = useGameStore(s => s.phase);
+  const encounter = useGameStore(s => s.encounter);
+  const deck = useGameStore(s => s.deck);
+  const discard = useGameStore(s => s.discard);
+  const hand = useGameStore(s => s.hand);
+  const map = useGameStore(s => s.map);
+  const gold = useGameStore(s => s.player.gold);
 
   if (phase === 'menu') return null;
 

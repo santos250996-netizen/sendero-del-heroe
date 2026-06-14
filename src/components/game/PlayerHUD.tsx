@@ -65,7 +65,7 @@ export function PlayerHUD() {
         <div>
           <div className="flex justify-between text-[11px] text-white/50 mb-0.5">
             <span>🗺️ Progreso</span>
-            <span>Capa {visitedCount}/{totalNodes}</span>
+            <span>Capa {Math.min((map?.currentLayer ?? 0) + 1, 10)}/10</span>
           </div>
           <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-white/10">
             <div

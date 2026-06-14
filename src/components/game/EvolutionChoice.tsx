@@ -3,13 +3,14 @@
 import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
 import { getEvolutionNode } from '@/game/data/evolutions';
-import { getCardDef, CARD_EMOJI } from '@/game/data/cards';
+import { getCardDef, CARD_EMOJI, transformCard } from '@/game/data/cards';
 
 export function EvolutionChoice() {
   const evolutionChoices = useGameStore(s => s.evolutionChoices);
   const chooseEvolution = useGameStore(s => s.chooseEvolution);
   const pendingEvolution = useGameStore(s => s.pendingEvolution);
   const phase = useGameStore(s => s.phase);
+  const deck = useGameStore(s => s.deck);
 
   if (phase !== 'evolution_choice' || !pendingEvolution || evolutionChoices.length === 0) return null;
 
@@ -89,6 +90,39 @@ export function EvolutionChoice() {
                     <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Pasiva</p>
                     <p className="text-xs text-amber-200/80">{node.passiveDescription}</p>
                   </div>
+
+                  {/* Card transformations */}
+                  {(() => {
+                    const transforms = deck
+                      .filter(c => {
+                        const newId = transformCard(c.defId, classPath);
+                        return !!newId;
+                      })
+                      .reduce<Record<string, string[]>>((acc, c) => {
+                        const newId = transformCard(c.defId, classPath)!;
+                        const key = `${c.defId}→${newId}`;
+                        if (!acc[key]) acc[key] = [c.defId, newId];
+                        return acc;
+                      }, {});
+                    const entries = Object.entries(transforms);
+                    if (entries.length === 0) return null;
+                    return (
+                      <div className="mt-3">
+                        <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">
+                          Cartas transformadas ({entries.length})
+                        </p>
+                        <div className="flex gap-1 flex-wrap">
+                          {entries.map(([key, [oldId, newId]]) => (
+                            <span key={key} className="text-xs bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded text-amber-200/60 flex items-center gap-1">
+                              {CARD_EMOJI[oldId] || '🃏'} {(() => { try { return getCardDef(oldId).name; } catch { return oldId; } })()}
+                              <span className="text-white/30">→</span>
+                              {CARD_EMOJI[newId] || '🃏'} {(() => { try { return getCardDef(newId).name; } catch { return newId; } })()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* New cards */}
                   {node.unlockCardIds.length > 0 && (

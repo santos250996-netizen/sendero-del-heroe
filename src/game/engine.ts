@@ -4,7 +4,7 @@ import {
 } from './types';
 import { getCardDef, getEffectiveCardDef, transformCard, getRewardPool, getRandomClassCard } from './data/cards';
 import { getEvolutionNode, getEvolutionChoices, getClassLineage, EVOLUTION_TREE } from './data/evolutions';
-import { getEnemyForEncounter, getEnemyDef } from './data/enemies';
+import { getEnemyForEncounter, getEnemyDef, ALL_ENEMIES } from './data/enemies';
 import {
   generateMap, visitNode,
   getRandomEvent, getCombatGoldReward, getTreasureReward,
@@ -110,8 +110,15 @@ export function enterNode(state: GameState): GameState {
 
 // ─── Enter Combat ────────────────────────────────────────
 function enterCombat(state: GameState, node: MapNode): GameState {
-  const lastEnemyId = state.enemy?.defId;
-  const enemyDef = getEnemyForEncounter(node.encounterDifficulty, lastEnemyId);
+  let enemyDef;
+  if (node.type === 'boss') {
+    // Boss node ALWAYS spawns a boss enemy
+    const bosses = ALL_ENEMIES.filter(e => e.tier === 'boss');
+    enemyDef = bosses[Math.floor(Math.random() * bosses.length)];
+  } else {
+    const lastEnemyId = state.enemy?.defId;
+    enemyDef = getEnemyForEncounter(node.encounterDifficulty, lastEnemyId);
+  }
   const healAmount = Math.floor(state.player.maxHp * 0.10); // 10% heal between combats (less than before since we have rest)
 
   const encounter = state.encounter + 1;
@@ -379,18 +386,18 @@ export function endPlayerTurn(state: GameState): GameState {
   const passive = getEvolutionNode(p.classPath).passive;
   const logEntries: string[] = [];
 
-  // Apply end-turn passives before clearing block
+  // Block decays at end of player turn (BEFORE passives so end_block survives)
+  p.block = 0;
+
+  // Apply end-turn passives after clearing block
   if (passive.type === 'end_block') {
-    p.block = (p.block || 0) + passive.value;
+    p.block += passive.value;
     logEntries.push(`Pasiva: +${passive.value} bloque`);
   }
   if (passive.type === 'end_heal') {
     p.hp = Math.min(p.hp + passive.value, p.maxHp);
     logEntries.push(`Pasiva: +${passive.value} HP`);
   }
-
-  // Block decays at end of player turn
-  p.block = 0;
   s.player = p;
   s.log = [...logEntries, ...s.log];
 
@@ -421,13 +428,13 @@ function enemyAction(state: GameState): GameState {
   }
 
   if (e.hp <= 0) {
-    return { ...state, enemy: e, log: [...logEntries, ...state.log] };
+    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
   }
 
   if (e.freeze > 0) {
     e.freeze--;
     logEntries.push(`${e.name} está congelado! No ataca.`);
-    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
+    return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
   }
 
   // Enemy block resets each turn (gains base block, doesn't accumulate)
@@ -468,8 +475,9 @@ function enemyAction(state: GameState): GameState {
 
 // ─── Check combat end ──────────────────────────────────────
 export function checkCombatEnd(state: GameState): 'enemy_dead' | 'player_dead' | 'continue' {
-  if (state.player.hp <= 0) return 'player_dead';
+  // Enemy death checked first: mutual kill = player wins (roguelike standard)
   if (state.enemy && state.enemy.hp <= 0) return 'enemy_dead';
+  if (state.player.hp <= 0) return 'player_dead';
   return 'continue';
 }
 
@@ -647,6 +655,25 @@ export function removeCardFromDeck(state: GameState, cardUid: string): GameState
 }
 
 export function cancelRestAction(state: GameState): GameState {
+  // Refund gold if canceling a paid shop service
+  if (state.phase === 'shop') {
+    const activeService = state.shopItems.find(
+      i => i.sold && (
+        (i.type === 'remove' && state.removingCard) ||
+        (i.type === 'upgrade' && state.upgradingCard)
+      )
+    );
+    if (activeService) {
+      return {
+        ...state,
+        player: { ...state.player, gold: state.player.gold + activeService.cost },
+        shopItems: state.shopItems.map(i => i.id === activeService.id ? { ...i, sold: false } : i),
+        removingCard: false,
+        upgradingCard: false,
+        restChoice: null,
+      };
+    }
+  }
   return { ...state, removingCard: false, upgradingCard: false, restChoice: null };
 }
 
@@ -804,8 +831,8 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
 
   let newDeck = [...state.deck];
 
-  // Add card reward
-  if (option.cardReward) {
+  // Add card reward (respects 25-card max)
+  if (option.cardReward && newDeck.length < 25) {
     const newCard: CardInstance = { uid: uid(), defId: option.cardReward, upgraded: false };
     newDeck = [...newDeck, newCard];
     try {
@@ -813,6 +840,8 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
     } catch {
       logEntries.push(`Obtuviste una carta misteriosa`);
     }
+  } else if (option.cardReward && newDeck.length >= 25) {
+    logEntries.push('Mazo lleno, no se añadió la carta');
   }
 
   // Add curse card (max 2 copies)

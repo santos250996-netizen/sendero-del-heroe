@@ -18,7 +18,9 @@ const weaken1: CardUpgradeBonus = { bonusWeaken: 1 };
 const str2: CardUpgradeBonus = { bonusStrengthBuff: 2 };
 const eng1: CardUpgradeBonus = { bonusEnergyGain: 1 };
 const aoe5: CardUpgradeBonus = { bonusAoeDamage: 5 };
+const atkBuff2: CardUpgradeBonus = { bonusAttackBuff: 2 };
 const selfDmgReduce2: CardUpgradeBonus = { bonusSelfDamageReduction: 2 };
+const dodge1: CardUpgradeBonus = { bonusDodge: 1 };
 
 // ─── ALL CARDS ──────────────────────────────────────────
 
@@ -104,7 +106,7 @@ export const ALL_CARDS: CardDef[] = [
     id: 'evadir', name: 'Evadir',
     description: 'Esquiva el próximo ataque enemigo.',
     cost: 1, rarity: 'common', target: 'self', classPath: 'picaro', tier: 1,
-    dodge: 1, upgradeBonus: blk2,
+    dodge: 1, upgradeBonus: dodge1,
   },
   // Guerrero transforms
   {
@@ -198,7 +200,7 @@ export const ALL_CARDS: CardDef[] = [
     id: 'sombras', name: 'Sombras',
     description: 'Se funde con la oscuridad. Esquiva 2 ataques.',
     cost: 1, rarity: 'rare', target: 'self', classPath: 'asesino', tier: 2,
-    dodge: 2, upgradeBonus: blk2,
+    dodge: 2, upgradeBonus: dodge1,
   },
 
   // ═══ BARDO (Tier 2) — New cards ═══
@@ -206,7 +208,7 @@ export const ALL_CARDS: CardDef[] = [
     id: 'cancion_guerra', name: 'Canción de Guerra',
     description: 'Inspira valor. +3 daño a todos los ataques este turno.',
     cost: 1, rarity: 'rare', target: 'passive', classPath: 'bardo', tier: 2,
-    attackBuffTurn: 3, upgradeBonus: costDown1,
+    attackBuffTurn: 3, upgradeBonus: atkBuff2,
   },
   {
     id: 'inspiracion_bardo', name: 'Inspiración',
@@ -374,6 +376,7 @@ export function getEffectiveCardDef(card: { defId: string; upgraded: boolean }):
     energyGain: def.energyGain ? def.energyGain + (ub.bonusEnergyGain || 0) : (ub.bonusEnergyGain ? ub.bonusEnergyGain : undefined),
     selfDamage: def.selfDamage ? Math.max(0, def.selfDamage - (ub.bonusSelfDamageReduction || 0)) : undefined,
     dodge: def.dodge ? def.dodge + (ub.bonusDodge || 0) : (ub.bonusDodge ? ub.bonusDodge : undefined),
+    attackBuffTurn: def.attackBuffTurn ? def.attackBuffTurn + (ub.bonusAttackBuff || 0) : (ub.bonusAttackBuff ? ub.bonusAttackBuff : undefined),
   };
 }
 

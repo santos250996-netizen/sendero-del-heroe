@@ -51,13 +51,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   function resolveCombatEnd(cs: GameState, fromEndTurn: boolean = false) {
     const result = engine.checkCombatEnd(cs);
     if (result === 'enemy_dead') {
-      if (engine.checkFinalVictory(cs)) {
-        const victoryState = engine.handleVictory(cs);
-        set({ ...victoryState, phase: 'victory', isAnimating: false });
-      } else {
-        const victoryState = engine.handleVictory(cs);
-        set({ ...victoryState, isAnimating: false });
-      }
+      const victoryState = engine.handleVictory(cs);
+      // Don't override phase: let handleVictory flow (evolution_choice → reward → returnToMap → victory)
+      set({ ...victoryState, isAnimating: false });
     } else if (result === 'player_dead') {
       set({ phase: 'gameover', isAnimating: false });
     } else if (fromEndTurn) {

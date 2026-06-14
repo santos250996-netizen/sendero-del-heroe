@@ -34,7 +34,7 @@ export function EnemyDisplay() {
       intentText = 'Congelado';
     } else if (intentDmg > 0) {
       intentEmoji = '⚔️';
-      intentText = `${intentDmg} dmg`;
+      intentText = enemy.weaken > 0 ? `${def.damage}→${intentDmg} dmg` : `${intentDmg} dmg`;
     }
   } catch {
     // ignore

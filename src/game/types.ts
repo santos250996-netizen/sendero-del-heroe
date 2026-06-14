@@ -97,6 +97,7 @@ export interface CardUpgradeBonus {
   bonusWeaken?: number;
   bonusDodge?: number;
   bonusSelfDamageReduction?: number; // reduces self-damage
+  bonusAttackBuff?: number; // bonus attack buff this turn
 }
 
 export interface CardDef {

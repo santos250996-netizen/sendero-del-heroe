@@ -173,6 +173,12 @@ export function startTurn(state: GameState): GameState {
   // Cap energy to prevent overflow
   p.energy = Math.min(p.energy, p.maxEnergy * 2);
 
+  // scaling_strength: gain +X strength every 3 turns
+  if (passive.type === 'scaling_strength' && turn % 3 === 0) {
+    p.strength += passive.value;
+    logEntries.push(`Pasiva: +${passive.value} Fuerza (cada 3 turnos)`);
+  }
+
   let drawCount = p.drawPerTurn;
   if (passive.type === 'extra_draw') {
     drawCount += passive.value;
@@ -203,6 +209,7 @@ export function startTurn(state: GameState): GameState {
 // ─── Draw cards ───────────────────────────────────────────
 export function drawCards(state: GameState, count: number): GameState {
   let s = { ...state };
+  const passive = getEvolutionNode(s.player.classPath).passive;
   for (let i = 0; i < count; i++) {
     if (s.hand.length >= 8) break;
     if (s.deck.length === 0) {
@@ -211,6 +218,10 @@ export function drawCards(state: GameState, count: number): GameState {
     }
     const card = s.deck[0];
     s = { ...s, deck: s.deck.slice(1), hand: [...s.hand, card] };
+    // block_on_draw passive
+    if (passive.type === 'block_on_draw') {
+      s = { ...s, player: { ...s.player, block: (s.player.block || 0) + passive.value } };
+    }
   }
   return s;
 }
@@ -247,9 +258,14 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
   // Low HP bonus damage (Berserker passive)
   const lowHpDamage = (passive.type === 'low_hp_damage' && (p.hp / p.maxHp) < 0.5) ? passive.value : 0;
 
+  // Combo bonus: +X damage if 3+ cards played this turn (tracked via discard growth)
+  // We approximate: cards in discard now vs at turn start
+  // Since drawCards doesn't add to discard, the difference is cards played
+  const comboBonus = (passive.type === 'combo_bonus' && state.discard.length >= 3) ? passive.value : 0;
+
   // ── Damage to single enemy ──
   if (card.damage && e && card.target === 'enemy') {
-    let totalDmg = card.damage + p.strength + passiveDamage + lowHpDamage + p.nextAttackBuff + p.attackBuffTurn;
+    let totalDmg = card.damage + p.strength + passiveDamage + lowHpDamage + p.nextAttackBuff + p.attackBuffTurn + comboBonus;
 
     if (card.executeThreshold && card.executeDamage) {
       const hpPercent = (e.hp / e.maxHp) * 100;
@@ -286,7 +302,7 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
 
   // ── AOE Damage ──
   if (card.aoeDamage && e) {
-    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff;
+    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff + comboBonus;
     const enemyDef = getEnemyDef(e.defId);
     if (enemyDef.classWeakness && getClassLineage(p.classPath).includes(enemyDef.classWeakness)) {
       totalDmg = Math.floor(totalDmg * 1.5);
@@ -398,6 +414,11 @@ export function endPlayerTurn(state: GameState): GameState {
     p.hp = Math.min(p.hp + passive.value, p.maxHp);
     logEntries.push(`Pasiva: +${passive.value} HP`);
   }
+  // self_heal_on_low: heal X if HP < 50% at end of turn
+  if (passive.type === 'self_heal_on_low' && (p.hp / p.maxHp) < 0.5) {
+    p.hp = Math.min(p.hp + passive.value, p.maxHp);
+    logEntries.push(`Pasiva: +${passive.value} HP (HP bajo)`);
+  }
   s.player = p;
   s.log = [...logEntries, ...s.log];
 
@@ -469,6 +490,18 @@ function enemyAction(state: GameState): GameState {
 
   p.hp -= dmg;
   logEntries.push(`${e.name} ataca por ${dmg} daño`);
+
+  // Thorns: deal X damage back to enemy
+  if (passive.type === 'thorns' && dmg > 0) {
+    e.hp -= passive.value;
+    logEntries.push(`Pasiva espinas: ${passive.value} daño al enemigo`);
+  }
+
+  // draw_on_damage: draw X card when taking damage
+  if (passive.type === 'draw_on_damage' && dmg > 0) {
+    const drawState: GameState = { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
+    return drawCards(drawState, passive.value);
+  }
 
   return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log], nextEncounterDamageBonus: 0 };
 }

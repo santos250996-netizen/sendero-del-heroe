@@ -50,7 +50,7 @@ export function EvolutionChoice() {
           Saltar evolución → ver recompensas
         </button>
 
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center">
+        <div className={validChoices.length > 3 ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' : 'flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center'}>
           {validChoices.map((classPath, i) => {
             const node = getEvolutionNode(classPath);
             return (
@@ -62,7 +62,7 @@ export function EvolutionChoice() {
                 whileHover={{ scale: 1.03, y: -4 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => chooseEvolution(classPath)}
-                className={`flex-1 max-w-xs mx-auto sm:mx-0 rounded-2xl border border-white/15 overflow-hidden transition-all hover:border-white/30 hover:shadow-2xl cursor-pointer text-left`}
+                className={`rounded-2xl border border-white/15 overflow-hidden transition-all hover:border-white/30 hover:shadow-2xl cursor-pointer text-left ${validChoices.length <= 3 ? 'flex-1 max-w-xs mx-auto sm:mx-0' : ''}`}
                 style={{ background: 'linear-gradient(135deg, rgba(20,20,40,0.95), rgba(30,30,60,0.95))' }}
               >
                 {/* Class icon */}

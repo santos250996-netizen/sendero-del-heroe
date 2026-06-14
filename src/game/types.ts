@@ -1,9 +1,41 @@
 // ─── Core Game Types ─────────────────────────────────────
 
 export type ClassPath =
+  // Tier 0
   | 'vagabundo'
+  // Tier 1 (9 ramas)
   | 'mago' | 'picaro' | 'guerrero'
-  | 'hechicero' | 'brujo' | 'asesino' | 'bardo' | 'paladin' | 'berserker';
+  | 'cazador' | 'monje' | 'druida'
+  | 'sacerdote' | 'chaman' | 'caballero'
+  // Tier 2 (18 sub-clases)
+  | 'hechicero' | 'brujo'
+  | 'asesino' | 'bardo'
+  | 'paladin' | 'berserker'
+  | 'guardabosques' | 'artillero'
+  | 'artista_marcial' | 'maestro_zen'
+  | 'cambiaformas' | 'invocador'
+  | 'clerigo' | 'inquisidor'
+  | 'elementalista' | 'ancestral'
+  | 'templario' | 'condotiero'
+  // Tier 3 (18 legendarias)
+  | 'archimago' | 'pirocapitan'
+  | 'nigromante' | 'senor_sombras'
+  | 'ninja' | 'verdugo'
+  | 'trovador' | 'encantador'
+  | 'cruzado' | 'santo'
+  | 'titan' | 'berserker_ancestral'
+  | 'maestro_bestias' | 'cazador_sombras'
+  | 'desintegrador' | 'bombardero'
+  | 'monje_diamante' | 'avatar'
+  | 'iluminado' | 'fantasma_errante'
+  | 'hombre_lobo' | 'espiritu_bosque'
+  | 'druida_ancestral' | 'latigo_mundo'
+  | 'sumo_sacerdote' | 'sanador_divino'
+  | 'juez_final' | 'purificador'
+  | 'senor_elementos' | 'ciclon'
+  | 'chaman_supremo' | 'vidente'
+  | 'paladin_legendario' | 'muro_hierro'
+  | 'mercenario_real' | 'capitan_guerra';
 
 export type CardRarity = 'starter' | 'common' | 'rare' | 'legendary' | 'curse';
 export type CardTarget = 'enemy' | 'self' | 'all_enemies' | 'passive';
@@ -48,13 +80,21 @@ export interface GameMap {
 // ─── Evolution ──────────────────────────────────────────
 
 export type PassiveType =
-  | 'extra_draw'
-  | 'bonus_damage'
-  | 'end_block'
-  | 'end_heal'
-  | 'heal_on_damage'
-  | 'extra_energy'
-  | 'low_hp_damage';  // Berserker: extra damage when HP < 50%
+  // Original 7
+  | 'extra_draw'          // +X cards per turn
+  | 'bonus_damage'        // +X damage to all attacks
+  | 'end_block'           // +X block at end of turn
+  | 'end_heal'            // +X heal at end of turn
+  | 'heal_on_damage'      // heal X when dealing damage
+  | 'extra_energy'        // +X energy at start of turn
+  | 'low_hp_damage'       // +X damage when HP < 50%
+  // New 6
+  | 'thorns'              // deals X damage back when hit
+  | 'scaling_strength'    // +X strength every 3 turns
+  | 'self_heal_on_low'    // heals X at end of turn if HP < 50%
+  | 'block_on_draw'       // gains X block per card drawn
+  | 'draw_on_damage'      // draws X card when taking damage
+  | 'combo_bonus';        // if 3+ cards played this turn, +X damage
 
 export interface PassiveEffect {
   type: PassiveType;
@@ -65,7 +105,7 @@ export interface EvolutionNode {
   id: ClassPath;
   name: string;
   title: string;
-  tier: number; // 0, 1, 2
+  tier: number; // 0, 1, 2, 3
   parent?: ClassPath;
   maxHp: number;
   maxEnergy: number;
@@ -96,8 +136,8 @@ export interface CardUpgradeBonus {
   bonusFreeze?: number;
   bonusWeaken?: number;
   bonusDodge?: number;
-  bonusSelfDamageReduction?: number; // reduces self-damage
-  bonusAttackBuff?: number; // bonus attack buff this turn
+  bonusSelfDamageReduction?: number;
+  bonusAttackBuff?: number;
 }
 
 export interface CardDef {
@@ -212,7 +252,7 @@ export interface EventOption {
   canRemoveCard?: boolean;
   canUpgradeCard?: boolean;
   curseCard?: string;     // cardId of curse to add
-  nextEncounterDamageBonus?: number;  // buff/debuff next enemy encounter
+  nextEncounterDamageBonus?: number;
 }
 
 export interface GameEvent {

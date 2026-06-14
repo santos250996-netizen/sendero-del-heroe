@@ -47,8 +47,8 @@ interface GameStore extends GameState {
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
-  // Helper: resolve combat end after player action or end of turn
-  function resolveCombatEnd(cs: GameState) {
+  // Helper: resolve combat end after player action
+  function resolveCombatEnd(cs: GameState, fromEndTurn: boolean = false) {
     const result = engine.checkCombatEnd(cs);
     if (result === 'enemy_dead') {
       if (engine.checkFinalVictory(cs)) {
@@ -60,9 +60,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     } else if (result === 'player_dead') {
       set({ phase: 'gameover', isAnimating: false });
-    } else {
+    } else if (fromEndTurn) {
+      // New player turn starts ONLY after end of turn (enemy acted)
       const nextTurn = engine.startTurn(cs);
       set({ ...nextTurn, isAnimating: false });
+    } else {
+      // Mid-turn (after playing a card): just unlock UI
+      set({ isAnimating: false });
     }
   }
 
@@ -112,7 +116,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     setTimeout(() => {
       const cs = get();
-      resolveCombatEnd(cs);
+      resolveCombatEnd(cs, false);
     }, 400);
   },
 
@@ -127,7 +131,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     setTimeout(() => {
       const cs = get();
-      resolveCombatEnd(cs);
+      resolveCombatEnd(cs, true);
     }, 600);
   },
 

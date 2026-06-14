@@ -3,6 +3,7 @@
 import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
 import { getEvolutionNode } from '@/game/data/evolutions';
+import { getCardDef, CARD_EMOJI } from '@/game/data/cards';
 
 export function EvolutionChoice() {
   const evolutionChoices = useGameStore(s => s.evolutionChoices);
@@ -19,7 +20,8 @@ export function EvolutionChoice() {
   if (validChoices.length === 0) {
     // Fallback: skip evolution and go to next encounter
     const skipEvolution = useGameStore.getState().skipRewards;
-    setTimeout(() => skipEvolution(), 0);
+    // Use queueMicrotask to avoid state update during render
+    if (typeof window !== 'undefined') queueMicrotask(() => skipEvolution());
     return null;
   }
 
@@ -84,12 +86,23 @@ export function EvolutionChoice() {
                       <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">
                         Nuevas cartas ({node.unlockCardIds.length})
                       </p>
-                      <div className="flex gap-1">
-                        {node.unlockCardIds.map(id => (
-                          <span key={id} className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/50">
-                            {id.replace(/_/g, ' ')}
-                          </span>
-                        ))}
+                      <div className="flex gap-1 flex-wrap">
+                        {node.unlockCardIds.map(id => {
+                          try {
+                            const def = getCardDef(id);
+                            return (
+                              <span key={id} className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/50 flex items-center gap-1">
+                                {CARD_EMOJI[id] || '🃏'} {def.name}
+                              </span>
+                            );
+                          } catch {
+                            return (
+                              <span key={id} className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/50">
+                                {id.replace(/_/g, ' ')}
+                              </span>
+                            );
+                          }
+                        })}
                       </div>
                     </div>
                   )}

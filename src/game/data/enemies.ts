@@ -18,13 +18,17 @@ export function getEnemyForEncounter(encounter: number, previousId?: string): En
 
   let pool: EnemyDef[];
   if (encounter <= 2) {
-    pool = eligible.filter(e => e.tier === 'easy') || eligible;
+    pool = eligible.filter(e => e.tier === 'easy');
+    if (pool.length === 0) pool = eligible;
   } else if (encounter <= 4) {
-    pool = eligible.filter(e => e.tier === 'easy' || e.tier === 'medium') || eligible;
+    pool = eligible.filter(e => e.tier === 'easy' || e.tier === 'medium');
+    if (pool.length === 0) pool = eligible;
   } else if (encounter <= 6) {
-    pool = eligible.filter(e => e.tier === 'medium' || e.tier === 'hard') || eligible;
+    pool = eligible.filter(e => e.tier === 'medium' || e.tier === 'hard');
+    if (pool.length === 0) pool = eligible;
   } else {
-    pool = eligible.filter(e => e.tier === 'hard' || e.tier === 'boss') || eligible;
+    pool = eligible.filter(e => e.tier === 'hard' || e.tier === 'boss');
+    if (pool.length === 0) pool = eligible;
   }
 
   if (encounter >= 6 && encounter % 3 === 0) {

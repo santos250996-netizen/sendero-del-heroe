@@ -360,7 +360,7 @@ export const ALL_EVENTS: GameEvent[] = [
     options: [
       {
         id: 'help_traveler',
-        text: 'Ayudar al viajero (curar 10 HP)',
+        text: 'Ayudar al viajero (cuesta 10 HP)',
         narrative: 'Vendas sus heridas y le das parte de tu energía. A cambio, el viajero te da un amuleto mágico y un poco de oro como agradecimiento.',
         hpChange: -10,
         goldChange: 20,
@@ -409,23 +409,5 @@ export function getCombatGoldReward(nodeType: NodeType): number {
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// SHOP GENERATION
-// ═══════════════════════════════════════════════════════
+// Removed: dead code — shop generation is handled directly in engine.ts
 
-export function generateShopItems(classPath: string): ShopItem[] {
-  // Prices: common 50g, rare 100g, legendary 150g
-  // Remove card: 75g
-  // Upgrade card: 60g
-  const items: ShopItem[] = [
-    // 2 random cards for sale
-    { id: 'shop_card_1', type: 'card', cardDefId: 'shop_random_1', cost: 60, sold: false },
-    { id: 'shop_card_2', type: 'card', cardDefId: 'shop_random_2', cost: 60, sold: false },
-    { id: 'shop_card_3', type: 'card', cardDefId: 'shop_random_3', cost: 100, sold: false },
-    // Remove a card from deck
-    { id: 'shop_remove', type: 'remove', cost: 75, sold: false },
-    // Upgrade a card
-    { id: 'shop_upgrade', type: 'upgrade', cost: 60, sold: false },
-  ];
-  return items;
-}

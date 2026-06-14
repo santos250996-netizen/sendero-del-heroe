@@ -94,6 +94,7 @@ export interface CardUpgradeBonus {
   bonusAoeDamage?: number;
   bonusFreeze?: number;
   bonusWeaken?: number;
+  bonusDodge?: number;
   bonusSelfDamageReduction?: number; // reduces self-damage
 }
 
@@ -128,6 +129,7 @@ export interface CardDef {
   weaken?: number;
   // self effects
   selfDamage?: number;
+  dodge?: number;
   // conditional (execute: if enemy < X% HP, deal executeDamage)
   executeThreshold?: number;
   executeDamage?: number;
@@ -177,6 +179,7 @@ export interface PlayerState {
   maxEnergy: number;
   drawPerTurn: number;
   strength: number;
+  block: number;
   xp: number;
   evolutionTier: number;
   classPath: ClassPath;

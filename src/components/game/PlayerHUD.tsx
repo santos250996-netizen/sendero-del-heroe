@@ -2,6 +2,7 @@
 
 import { useGameStore } from '@/store/gameStore';
 import { getEvolutionNode, getClassColor, getClassEmoji } from '@/game/data/evolutions';
+import { getNextXpThreshold } from '@/game/engine';
 
 export function PlayerHUD() {
   const player = useGameStore(s => s.player);
@@ -20,12 +21,12 @@ export function PlayerHUD() {
   const evo = getEvolutionNode(player.classPath);
   const hpPercent = (player.hp / player.maxHp) * 100;
   const energyPercent = (player.energy / player.maxEnergy) * 100;
-  const nextThreshold = [15, 40, 80][player.evolutionTier] ?? 999;
+  const nextThreshold = getNextXpThreshold(player.evolutionTier);
   const xpPercent = Math.min(100, (player.xp / nextThreshold) * 100);
 
   const currentLayer = map?.currentLayer || 0;
   const maxLayer = map?.maxLayer || 9;
-  const progressPercent = (currentLayer / maxLayer) * 100;
+  const progressPercent = currentLayer >= maxLayer ? 100 : (currentLayer / maxLayer) * 100;
 
   // Hide energy/XP in non-battle phases
   const showBattleStats = phase === 'battle';
@@ -47,11 +48,7 @@ export function PlayerHUD() {
           <span className="text-yellow-300 font-bold">🪙 {gold}</span>
           {showBattleStats && <span>⚔️ {encounter}</span>}
           {player.strength > 0 && <span className="text-amber-400">💪+{player.strength}</span>}
-          {pendingEvolution && phase !== 'map' && (
-            <span className="text-yellow-300 animate-pulse text-[10px] px-1.5 py-0.5 bg-yellow-400/20 rounded-full border border-yellow-400/30">
-              EVOLUCIONAR
-            </span>
-          )}
+          {player.block > 0 && <span className="text-cyan-400">🛡{player.block}</span>}
         </div>
       </div>
 
@@ -130,6 +127,8 @@ export function PlayerHUD() {
       {showBattleStats && (
         <div className="flex items-center gap-3 text-[11px] text-white/40 justify-center">
           <span>🃏 {deck.length}</span>
+          {player.block > 0 && <span>🛡 {player.block}</span>}
+          {player.dodgeCount > 0 && <span>🌀 {player.dodgeCount}</span>}
           <span>✋ {hand.length}</span>
           <span>🗑 {discard.length}</span>
         </div>

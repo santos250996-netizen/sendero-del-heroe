@@ -89,8 +89,8 @@ export const ALL_CARDS: CardDef[] = [
   {
     id: 'escudo_arcano', name: 'Escudo Arcano',
     description: '4 bloque + congela 1 turno del enemigo.',
-    cost: 1, rarity: 'common', target: 'enemy', classPath: 'mago', tier: 1,
-    freeze: 1, upgradeBonus: freeze1,
+    cost: 1, rarity: 'common', target: 'self', classPath: 'mago', tier: 1,
+    block: 4, freeze: 1, upgradeBonus: freeze1,
   },
   // Pícaro transforms
   {
@@ -103,7 +103,7 @@ export const ALL_CARDS: CardDef[] = [
     id: 'evadir', name: 'Evadir',
     description: 'Esquiva el próximo ataque enemigo.',
     cost: 1, rarity: 'common', target: 'self', classPath: 'picaro', tier: 1,
-    block: 3, upgradeBonus: blk2,
+    dodge: 1, upgradeBonus: blk2,
   },
   // Guerrero transforms
   {
@@ -142,7 +142,7 @@ export const ALL_CARDS: CardDef[] = [
   {
     id: 'barrera_hielo', name: 'Barrera de Hielo',
     description: '6 bloque + congela 2 turnos.',
-    cost: 2, rarity: 'rare', target: 'enemy', classPath: 'hechicero', tier: 2,
+    cost: 2, rarity: 'rare', target: 'self', classPath: 'hechicero', tier: 2,
     block: 6, freeze: 2, upgradeBonus: freeze1,
   },
 
@@ -197,7 +197,7 @@ export const ALL_CARDS: CardDef[] = [
     id: 'sombras', name: 'Sombras',
     description: 'Se funde con la oscuridad. Esquiva 2 ataques.',
     cost: 1, rarity: 'rare', target: 'self', classPath: 'asesino', tier: 2,
-    block: 6, upgradeBonus: blk2,
+    dodge: 2, upgradeBonus: blk2,
   },
 
   // ═══ BARDO (Tier 2) — New cards ═══
@@ -295,9 +295,8 @@ export const ALL_CARDS: CardDef[] = [
   },
   {
     id: 'vacuidad', name: 'Vacuidad',
-    description: 'Maldición: no puedes robar esta carta. Si la robas, pierdes 1 energía.',
+    description: 'Maldición: si la robas, pierdes 1 energía.',
     cost: 0, rarity: 'curse', target: 'passive', classPath: 'vagabundo', tier: 0,
-    energyGain: -1,
   },
 ];
 
@@ -373,6 +372,7 @@ export function getEffectiveCardDef(card: { defId: string; upgraded: boolean }):
     strengthBuff: def.strengthBuff ? def.strengthBuff + (ub.bonusStrengthBuff || 0) : (ub.bonusStrengthBuff ? ub.bonusStrengthBuff : undefined),
     energyGain: def.energyGain ? def.energyGain + (ub.bonusEnergyGain || 0) : (ub.bonusEnergyGain ? ub.bonusEnergyGain : undefined),
     selfDamage: def.selfDamage ? Math.max(0, def.selfDamage - (ub.bonusSelfDamageReduction || 0)) : undefined,
+    dodge: def.dodge ? def.dodge + (ub.bonusDodge || 0) : (ub.bonusDodge ? ub.bonusDodge : undefined),
   };
 }
 
@@ -438,7 +438,7 @@ export const CARD_EMOJI: Record<string, string> = {
   golpe_basico: '👊', escudo_ramas: '🌿',
   bola_fuego: '🔥', escudo_arcano: '❄️',
   rayo: '⚡', meditacion: '🧘',
-  punialada: '🗡️', evadir: '💨',
+  punialada: '🗡️', evadir: '🌀',
   veneno: '☠️', disparo_rapido: '💨',
   corte_poderoso: '⚔️', muro_escudos: '🛡️',
   grito_guerra: '📯', garrote: '💥',
@@ -446,7 +446,7 @@ export const CARD_EMOJI: Record<string, string> = {
   meteorito: '☄️', foco: '🔮',
   drenar_alma: '🌑', maldicion: '👁️',
   pacto_oscuro: '♤', robo_vida: '💜',
-  apunialar: '🔪', sombras: '🌑',
+  apunialar: '🔪', sombras: '👤',
   ejecucion: '💀', emboscada: '🏹',
   golpe_ritmico: '🎵', melodia_protectora: '🎶',
   cancion_guerra: '🎼', inspiracion_bardo: '🎭',

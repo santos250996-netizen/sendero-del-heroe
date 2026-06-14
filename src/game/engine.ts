@@ -1,5 +1,5 @@
 import {
-  type GameState, type CardInstance, type ClassPath, type MapNode, type NodeType,
+  type GameState, type CardInstance, type CardDef, type ClassPath, type MapNode, type NodeType,
   type GameEvent, type EventOption, type ShopItem, type RestChoice,
 } from './types';
 import { getCardDef, getEffectiveCardDef, transformCard, getRewardPool, ALL_CARDS, getRandomClassCard } from './data/cards';
@@ -7,7 +7,7 @@ import { getEvolutionNode, getEvolutionChoices, EVOLUTION_TREE } from './data/ev
 import { getEnemyForEncounter, getEnemyDef } from './data/enemies';
 import {
   generateMap, visitNode, getAvailableNodes, isMapComplete,
-  getRandomEvent, getCombatGoldReward, getTreasureReward, generateShopItems,
+  getRandomEvent, getCombatGoldReward, getTreasureReward,
 } from './data/map';
 
 // ─── UID Generator ────────────────────────────────────────
@@ -35,6 +35,7 @@ export function createNewGame(): GameState {
       strength: 0, xp: 0,
       evolutionTier: 0,
       classPath: 'vagabundo',
+      block: 0,
       nextAttackBuff: 0,
       dodgeCount: 0,
       attackBuffTurn: 0,
@@ -128,6 +129,7 @@ function enterCombat(state: GameState, node: MapNode): GameState {
     player: {
       ...state.player,
       hp: Math.min(state.player.hp + healAmount, state.player.maxHp),
+      block: 0,
       nextAttackBuff: 0,
       dodgeCount: 0,
       attackBuffTurn: 0,
@@ -237,7 +239,7 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
     if (card.executeThreshold && card.executeDamage) {
       const hpPercent = (e.hp / e.maxHp) * 100;
       if (hpPercent < card.executeThreshold) {
-        totalDmg = card.executeDamage + p.strength + passiveDamage + p.attackBuffTurn;
+        totalDmg = card.executeDamage + p.strength + passiveDamage + p.attackBuffTurn + p.nextAttackBuff;
         logEntries.push(`¡EJECUCIÓN!`);
       }
     }
@@ -269,7 +271,7 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
 
   // ── AOE Damage ──
   if (card.aoeDamage && e) {
-    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + p.attackBuffTurn;
+    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + p.attackBuffTurn + p.nextAttackBuff;
     const enemyDef = getEnemyDef(e.defId);
     if (enemyDef.classWeakness && getClassLineage(p.classPath).includes(enemyDef.classWeakness)) {
       totalDmg = Math.floor(totalDmg * 1.5);
@@ -296,7 +298,14 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
 
   // ── Block ──
   if (card.block) {
+    p.block += card.block;
     logEntries.push(`${card.name}: +${card.block} protección`);
+  }
+
+  // ── Dodge ──
+  if (card.dodge) {
+    p.dodgeCount += card.dodge;
+    logEntries.push(`${card.name}: esquiva ${card.dodge} ataque${card.dodge > 1 ? 's' : ''}`);
   }
 
   // ── Self damage ──
@@ -371,6 +380,7 @@ export function endPlayerTurn(state: GameState): GameState {
   const logEntries: string[] = [];
 
   if (passive.type === 'end_block') {
+    p.block = (p.block || 0) + passive.value;
     logEntries.push(`Pasiva: +${passive.value} bloque`);
   }
   if (passive.type === 'end_heal') {
@@ -392,8 +402,19 @@ function enemyAction(state: GameState): GameState {
   const p = { ...state.player };
   const logEntries: string[] = [];
 
+  // Save DoT values before decrementing for Brujo passive
+  const hadBurn = e.burn > 0;
+  const hadPoison = e.poison > 0;
   if (e.burn > 0) { e.hp -= e.burn; logEntries.push(`Quemadura: ${e.burn} daño`); e.burn = Math.max(0, e.burn - 1); }
   if (e.poison > 0) { e.hp -= e.poison; logEntries.push(`Veneno: ${e.poison} daño`); e.poison = Math.max(0, e.poison - 1); }
+
+  // Brujo passive: heal on DoT damage
+  const passive = getEvolutionNode(p.classPath).passive;
+  if (passive.type === 'heal_on_damage' && (hadBurn || hadPoison)) {
+    const dotHeal = passive.value;
+    p.hp = Math.min(p.hp + dotHeal, p.maxHp);
+    logEntries.push(`Pasiva: +${dotHeal} HP (Daño en el tiempo)`);
+  }
 
   if (e.hp <= 0) {
     return { ...state, enemy: e, log: [...logEntries, ...state.log] };
@@ -405,22 +426,29 @@ function enemyAction(state: GameState): GameState {
     return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
   }
 
-  if (state.turn % 2 === 0) {
-    e.block = Math.min(e.block + enemyDef.block, 15);
-  }
+  e.block = Math.min(e.block + enemyDef.block, 15);
 
   let dmg = Math.max(0, enemyDef.damage - e.weaken);
 
   // Apply next encounter damage bonus (from events)
-  if (state.nextEncounterDamageBonus > 0) {
+  if (state.nextEncounterDamageBonus !== 0) {
     dmg += state.nextEncounterDamageBonus;
     logEntries.push(`¡Maldición del altar: +${state.nextEncounterDamageBonus} daño!`);
   }
 
+  // Dodge check (before block)
   if (p.dodgeCount > 0) {
     p.dodgeCount--;
     logEntries.push(`Esquivas el ataque!`);
     return { ...state, enemy: e, player: p, log: [...logEntries, ...state.log] };
+  }
+
+  // Player block absorption
+  if ((p.block || 0) > 0 && dmg > 0) {
+    const absorbed = Math.min(p.block || 0, dmg);
+    p.block = (p.block || 0) - absorbed;
+    dmg -= absorbed;
+    if (absorbed > 0) logEntries.push(`Bloqueas ${absorbed} daño`);
   }
 
   p.hp -= dmg;
@@ -452,7 +480,8 @@ export function handleVictory(state: GameState): GameState {
   const choiceIds: ClassPath[] = choiceNodes.map(n => n.id);
 
   // Generate reward cards
-  const rewardPool = getRewardPool(state.player.classPath, state.deck);
+  const allPlayerCards = [...state.deck, ...state.hand, ...state.discard];
+  const rewardPool = getRewardPool(state.player.classPath, allPlayerCards);
   const rewardCards = generateRewardCards(rewardPool, 3);
 
   // Reset next encounter damage bonus
@@ -460,7 +489,7 @@ export function handleVictory(state: GameState): GameState {
 
   return {
     ...state,
-    phase: shouldEvolve ? 'evolution_choice' : 'reward',
+    phase: 'reward',
     player: { ...state.player, xp: newXp, gold: state.player.gold + goldReward },
     rewardCards,
     evolutionChoices: choiceIds,
@@ -470,7 +499,7 @@ export function handleVictory(state: GameState): GameState {
   };
 }
 
-function getNextXpThreshold(tier: number): number {
+export function getNextXpThreshold(tier: number): number {
   return [15, 40, 80][tier] ?? 999;
 }
 
@@ -478,7 +507,8 @@ function getNextXpThreshold(tier: number): number {
 export function chooseEvolution(state: GameState, classPath: ClassPath): GameState {
   const node = getEvolutionNode(classPath);
 
-  let newDeck = state.deck.map(card => {
+  const allCards = [...state.deck, ...state.hand, ...state.discard];
+  let newDeck = allCards.map(card => {
     const newDefId = transformCard(card.defId, classPath);
     if (newDefId) {
       // Starter cards get FREE upgrade on evolution
@@ -675,18 +705,30 @@ export function buyShopItem(state: GameState, itemId: string): GameState {
         log: [`Compraste ${getCardDef(item.cardDefId).name} (-${item.cost}g)`, ...newState.log],
       };
     }
-    case 'remove':
+    case 'remove': {
+      if (newState.deck.length <= 3) {
+        return { ...newState, player: { ...newState.player, gold: newState.player.gold + item.cost }, log: ['No puedes eliminar más cartas (mínimo 3)', ...newState.log] };
+      }
       return {
         ...newState,
         removingCard: true,
         log: [`Pago por eliminar carta (-${item.cost}g). Selecciona una carta.`, ...newState.log],
       };
-    case 'upgrade':
+    }
+    case 'upgrade': {
+      const hasUpgradeable = newState.deck.some(c => {
+        const d = getCardDef(c.defId);
+        return d.upgradeBonus && !c.upgraded;
+      });
+      if (!hasUpgradeable) {
+        return { ...newState, player: { ...newState.player, gold: newState.player.gold + item.cost }, log: ['No hay cartas para mejorar', ...newState.log] };
+      }
       return {
         ...newState,
         upgradingCard: true,
         log: [`Pago por mejorar carta (-${item.cost}g). Selecciona una carta.`, ...newState.log],
       };
+    }
     default:
       return newState;
   }
@@ -748,14 +790,17 @@ export function chooseEventOption(state: GameState, optionId: string): GameState
     }
   }
 
-  // Add curse card
+  // Add curse card (max 2 copies)
   if (option.curseCard) {
-    const curseCard: CardInstance = { uid: uid(), defId: option.curseCard, upgraded: false };
-    newDeck = [...newDeck, curseCard];
-    try {
-      logEntries.push(`Maldición: ${getCardDef(option.curseCard).name} añadida al mazo`);
-    } catch {
-      logEntries.push(`¡Maldición añadida al mazo!`);
+    const curseCount = newDeck.filter(c => c.defId === option.curseCard).length;
+    if (curseCount < 2) {
+      const curseCard: CardInstance = { uid: uid(), defId: option.curseCard, upgraded: false };
+      newDeck = [...newDeck, curseCard];
+      try {
+        logEntries.push(`Maldición: ${getCardDef(option.curseCard).name} añadida al mazo`);
+      } catch {
+        logEntries.push(`¡Maldición añadida al mazo!`);
+      }
     }
   }
 

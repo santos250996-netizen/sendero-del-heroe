@@ -54,6 +54,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     hp: 0, maxHp: 0, energy: 0, maxEnergy: 0,
     drawPerTurn: 0, strength: 0, xp: 0,
     evolutionTier: 0, classPath: 'vagabundo',
+    block: 0,
     nextAttackBuff: 0, dodgeCount: 0, attackBuffTurn: 0,
     gold: 0,
   },
@@ -180,11 +181,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   toggleRewardCard: (cardUid: string) => {
     const state = get();
-    set({
-      pickedRewards: state.pickedRewards.includes(cardUid)
-        ? state.pickedRewards.filter(id => id !== cardUid)
-        : [...state.pickedRewards, cardUid],
-    });
+    const alreadyPicked = state.pickedRewards.includes(cardUid);
+    if (alreadyPicked) {
+      set({ pickedRewards: state.pickedRewards.filter(id => id !== cardUid) });
+    } else if (state.pickedRewards.length < 1) {
+      set({ pickedRewards: [...state.pickedRewards, cardUid] });
+    }
   },
 
   confirmRewards: () => {

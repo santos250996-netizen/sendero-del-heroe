@@ -5,14 +5,17 @@ import { getEvolutionNode, getClassColor, getClassEmoji } from '@/game/data/evol
 import { getNextXpThreshold } from '@/game/engine';
 
 export function PlayerHUD() {
-  const player = useGameStore(s => s.player);
-  const phase = useGameStore(s => s.phase);
-  const encounter = useGameStore(s => s.encounter);
-  const deck = useGameStore(s => s.deck);
-  const discard = useGameStore(s => s.discard);
-  const hand = useGameStore(s => s.hand);
-  const gold = useGameStore(s => s.player.gold);
-  const map = useGameStore(s => s.map);
+  // Single subscription selector for better performance
+  const { player, phase, encounter, deck, discard, hand, map, gold } = useGameStore(s => ({
+    player: s.player,
+    phase: s.phase,
+    encounter: s.encounter,
+    deck: s.deck,
+    discard: s.discard,
+    hand: s.hand,
+    map: s.map,
+    gold: s.player.gold,
+  }));
 
   if (phase === 'menu') return null;
 
@@ -24,7 +27,9 @@ export function PlayerHUD() {
 
   const visitedCount = map?.nodes.filter(n => n.visited).length || 0;
   const totalNodes = map?.nodes.length || 10;
-  const progressPercent = visitedCount >= totalNodes ? 100 : (visitedCount / totalNodes) * 100;
+  // Progress: only show 100% if boss node is visited (boss defeated)
+  const bossVisited = map?.nodes.some(n => n.type === 'boss' && n.visited);
+  const progressPercent = bossVisited ? 100 : (visitedCount / totalNodes) * 100;
 
   // Hide energy/XP in non-battle phases
   const showBattleStats = phase === 'battle';

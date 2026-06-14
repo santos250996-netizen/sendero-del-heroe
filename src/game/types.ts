@@ -53,7 +53,8 @@ export type PassiveType =
   | 'end_block'
   | 'end_heal'
   | 'heal_on_damage'
-  | 'extra_energy';
+  | 'extra_energy'
+  | 'low_hp_damage';  // Berserker: extra damage when HP < 50%
 
 export interface PassiveEffect {
   type: PassiveType;

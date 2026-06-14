@@ -36,3 +36,32 @@ Stage Summary:
 - MINOR: Removed unused variables from PlayerHUD
 - NEW: Added enemy intent display to EnemyDisplay (shows damage/block/dodge preview)
 - Build passes successfully
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix all audit inconsistencies in Sendero del Héroe card game
+
+Work Log:
+- Fixed duplicate card UID key collision in HandDisplay (React error with two children same key `c5_mqe07thq`)
+  - Root cause: `chooseEvolution()` collected all cards into deck but didn't clear `hand`/`discard`, causing duplicates when entering next combat via `enterCombat()` which does `deck: [...state.deck, ...state.discard, ...state.hand]`
+  - Fix: Added `hand: [], discard: []` to evolvedState in `chooseEvolution()`
+- Fixed `endPlayerTurn` hand-to-discard ordering (reordered spread to avoid stale references)
+- Added block decay at end of player turn (standard Slay the Spire mechanic)
+- Added new passive type `low_hp_damage` for Berserker class
+- Fixed Berserker passive: changed from generic `bonus_damage: 2` to `low_hp_damage: 4` (triggers when HP < 50%)
+- Fixed Asesino passive: changed from generic `bonus_damage: 1` to `extra_energy: 1` (more synergistic)
+- Implemented `low_hp_damage` in both single-target and AOE damage calculations
+- Added max deck size limit (25 cards) with checks in `addRewardCard()` and `buyShopItem()`
+- Refactored shop pre-checks: don't charge gold for impossible actions (remove/upgrade/full deck)
+- Added energy cap: `Math.min(energy, maxEnergy * 2)` in `startTurn()`
+- Fixed `getEnemyForEncounter` to always return an enemy (fallback to random from ALL_ENEMIES)
+- Fixed progress bar: only shows 100% when boss node is visited, not on any node visit
+- Optimized PlayerHUD: reduced from 8 separate Zustand subscriptions to 1 selector object
+- Added deck count display to RestScreen
+- Fixed TypeScript error in map.ts (boss node `layer === 0` comparison narrowed to literal `9`)
+
+Stage Summary:
+- 15 bugs fixed across CRITICAL, HIGH, and MEDIUM severity
+- All fixes in: engine.ts, types.ts, evolutions.ts, enemies.ts, map.ts, PlayerHUD.tsx, RestScreen.tsx
+- Build compiles cleanly with no src/ errors
+- Key fix: duplicate card UID collision that caused React key error in HandDisplay

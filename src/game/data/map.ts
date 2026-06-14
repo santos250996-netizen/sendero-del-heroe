@@ -81,12 +81,12 @@ export function generateMap(layer9IsBoss: boolean = true): GameMap {
     if (layer === 9 && layer9IsBoss) {
       // Boss layer: single node in center
       nodes.push({
-        id: `node_${layer}_0`,
+        id: `node_9_0`,
         type: 'boss',
-        layer,
+        layer: 9,
         column: 0,
         visited: false,
-        available: layer === 0,
+        available: false,
         encounterDifficulty: 10,
       });
     } else {

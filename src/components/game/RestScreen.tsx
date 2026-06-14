@@ -12,6 +12,7 @@ export function RestScreen() {
   const removingCard = useGameStore(s => s.removingCard);
   const upgradingCard = useGameStore(s => s.upgradingCard);
   const cancelRestAction = useGameStore(s => s.cancelRestAction);
+  const deckLength = useGameStore(s => s.deck.length);
 
   if (phase !== 'rest') return null;
 
@@ -84,6 +85,7 @@ export function RestScreen() {
         <div className="text-5xl mb-3">🛏️</div>
         <h2 className="text-2xl sm:text-3xl font-bold text-green-300">Zona de Descanso</h2>
         <p className="text-white/50 text-sm mt-2">Elige cómo recuperar fuerzas antes de seguir.</p>
+        <p className="text-white/30 text-xs mt-1">🃏 Mazo: {deckLength} cartas</p>
       </motion.div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center">

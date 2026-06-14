@@ -36,6 +36,8 @@ export function getEnemyForEncounter(encounter: number, previousId?: string): En
     if (bosses.length > 0) return bosses[Math.floor(Math.random() * bosses.length)];
   }
 
+  if (pool.length === 0) return ALL_ENEMIES[Math.floor(Math.random() * ALL_ENEMIES.length)];
+
   return pool[Math.floor(Math.random() * pool.length)];
 }
 

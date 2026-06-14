@@ -163,6 +163,9 @@ export function startTurn(state: GameState): GameState {
     logEntries.push(`Pasiva: +${passive.value} energía`);
   }
 
+  // Cap energy to prevent overflow
+  p.energy = Math.min(p.energy, p.maxEnergy * 2);
+
   let drawCount = p.drawPerTurn;
   if (passive.type === 'extra_draw') {
     drawCount += passive.value;
@@ -234,14 +237,17 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
   const passive = getEvolutionNode(p.classPath).passive;
   const passiveDamage = passive.type === 'bonus_damage' ? passive.value : 0;
 
+  // Low HP bonus damage (Berserker passive)
+  const lowHpDamage = (passive.type === 'low_hp_damage' && (p.hp / p.maxHp) < 0.5) ? passive.value : 0;
+
   // ── Damage to single enemy ──
   if (card.damage && e && card.target === 'enemy') {
-    let totalDmg = card.damage + p.strength + passiveDamage + p.nextAttackBuff + p.attackBuffTurn;
+    let totalDmg = card.damage + p.strength + passiveDamage + lowHpDamage + p.nextAttackBuff + p.attackBuffTurn;
 
     if (card.executeThreshold && card.executeDamage) {
       const hpPercent = (e.hp / e.maxHp) * 100;
       if (hpPercent < card.executeThreshold) {
-        totalDmg = card.executeDamage + p.strength + passiveDamage + p.attackBuffTurn + p.nextAttackBuff;
+        totalDmg = card.executeDamage + p.strength + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff;
         logEntries.push(`¡EJECUCIÓN!`);
       }
     }
@@ -273,7 +279,7 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
 
   // ── AOE Damage ──
   if (card.aoeDamage && e) {
-    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + p.attackBuffTurn + p.nextAttackBuff;
+    let totalDmg = card.aoeDamage + Math.floor(p.strength * 0.5) + passiveDamage + lowHpDamage + p.attackBuffTurn + p.nextAttackBuff;
     const enemyDef = getEnemyDef(e.defId);
     if (enemyDef.classWeakness && getClassLineage(p.classPath).includes(enemyDef.classWeakness)) {
       totalDmg = Math.floor(totalDmg * 1.5);
@@ -367,12 +373,13 @@ function applyCardEffect(state: GameState, card: ReturnType<typeof getEffectiveC
 
 // ─── End player turn ──────────────────────────────────────
 export function endPlayerTurn(state: GameState): GameState {
-  let s: GameState = { ...state, hand: [], discard: [...state.discard, ...state.hand] };
+  let s: GameState = { ...state, discard: [...state.discard, ...state.hand], hand: [] };
 
   const p = { ...s.player };
   const passive = getEvolutionNode(p.classPath).passive;
   const logEntries: string[] = [];
 
+  // Apply end-turn passives before clearing block
   if (passive.type === 'end_block') {
     p.block = (p.block || 0) + passive.value;
     logEntries.push(`Pasiva: +${passive.value} bloque`);
@@ -381,6 +388,9 @@ export function endPlayerTurn(state: GameState): GameState {
     p.hp = Math.min(p.hp + passive.value, p.maxHp);
     logEntries.push(`Pasiva: +${passive.value} HP`);
   }
+
+  // Block decays at end of player turn
+  p.block = 0;
   s.player = p;
   s.log = [...logEntries, ...s.log];
 
@@ -536,6 +546,8 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
       strength: state.player.strength + node.bonusStrength,
     },
     deck: newDeck,
+    hand: [],
+    discard: [],
     log: [`¡Evolucionaste a ${node.name}!`, ...state.log],
     pendingEvolution: false,
     evolutionChoices: [],
@@ -549,6 +561,13 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
 export function addRewardCard(state: GameState, cardUid: string): GameState {
   const card = state.rewardCards.find(c => c.uid === cardUid);
   if (!card) return state;
+  // Max deck size: 25 cards
+  if (state.deck.length >= 25) {
+    return {
+      ...state,
+      log: ['Mazo lleno (máximo 25 cartas)', ...state.log],
+    };
+  }
   return {
     ...state,
     deck: [...state.deck, card],
@@ -688,6 +707,23 @@ export function buyShopItem(state: GameState, itemId: string): GameState {
   const item = state.shopItems.find(i => i.id === itemId);
   if (!item || item.sold || state.player.gold < item.cost) return state;
 
+  // Pre-check: don't charge if action is impossible
+  if (item.type === 'remove' && state.deck.length <= 3) {
+    return { ...state, log: ['No puedes eliminar más cartas (mínimo 3)', ...state.log] };
+  }
+  if (item.type === 'upgrade') {
+    const hasUpgradeable = state.deck.some(c => {
+      const d = getCardDef(c.defId);
+      return d.upgradeBonus && !c.upgraded;
+    });
+    if (!hasUpgradeable) {
+      return { ...state, log: ['No hay cartas para mejorar', ...state.log] };
+    }
+  }
+  if (item.type === 'card' && state.deck.length >= 25) {
+    return { ...state, log: ['Mazo lleno (máximo 25 cartas)', ...state.log] };
+  }
+
   const newState = {
     ...state,
     player: { ...state.player, gold: state.player.gold - item.cost },
@@ -705,9 +741,6 @@ export function buyShopItem(state: GameState, itemId: string): GameState {
       };
     }
     case 'remove': {
-      if (newState.deck.length <= 3) {
-        return { ...newState, player: { ...newState.player, gold: newState.player.gold + item.cost }, log: ['No puedes eliminar más cartas (mínimo 3)', ...newState.log] };
-      }
       return {
         ...newState,
         removingCard: true,
@@ -715,13 +748,6 @@ export function buyShopItem(state: GameState, itemId: string): GameState {
       };
     }
     case 'upgrade': {
-      const hasUpgradeable = newState.deck.some(c => {
-        const d = getCardDef(c.defId);
-        return d.upgradeBonus && !c.upgraded;
-      });
-      if (!hasUpgradeable) {
-        return { ...newState, player: { ...newState.player, gold: newState.player.gold + item.cost }, log: ['No hay cartas para mejorar', ...newState.log] };
-      }
       return {
         ...newState,
         upgradingCard: true,

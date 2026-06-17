@@ -2,6 +2,7 @@
 
 import { useGameStore } from '@/store/gameStore';
 import { motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import { getEvolutionNode } from '@/game/data/evolutions';
 import { getCardDef, CARD_EMOJI, transformCard } from '@/game/data/cards';
 
@@ -11,22 +12,29 @@ export function EvolutionChoice() {
   const pendingEvolution = useGameStore(s => s.pendingEvolution);
   const phase = useGameStore(s => s.phase);
   const deck = useGameStore(s => s.deck);
+  const skipRewards = useGameStore(s => s.skipRewards);
+  const skippedRef = useRef(false);
+
+  // Compute valid choices once per render (no early return before hooks!)
+  const validChoices = phase === 'evolution_choice' && pendingEvolution
+    ? evolutionChoices.filter(id => {
+        try { return !!getEvolutionNode(id); } catch { return false; }
+      })
+    : [];
+
+  // If no valid evolution choices are available (shouldn't happen but defensive),
+  // skip to reward screen ONCE. Using useEffect + ref guard instead of
+  // queueMicrotask avoids double-firing under React StrictMode (which would
+  // skip the reward screen entirely).
+  useEffect(() => {
+    if (phase === 'evolution_choice' && pendingEvolution && validChoices.length === 0 && !skippedRef.current) {
+      skippedRef.current = true;
+      skipRewards();
+    }
+  }, [phase, pendingEvolution, validChoices.length, skipRewards]);
 
   if (phase !== 'evolution_choice' || !pendingEvolution || evolutionChoices.length === 0) return null;
-
-  const validChoices = evolutionChoices.filter(id => {
-    try { return !!getEvolutionNode(id); } catch { return false; }
-  });
-
-  if (validChoices.length === 0) {
-    // Fallback: skip evolution and go to reward screen
-    if (typeof window !== 'undefined') {
-      queueMicrotask(() => {
-        useGameStore.getState().skipRewards();
-      });
-    }
-    return null;
-  }
+  if (validChoices.length === 0) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
@@ -42,9 +50,7 @@ export function EvolutionChoice() {
           Tu evolución define tus cartas y habilidades.
         </p>
         <button
-          onClick={() => {
-            useGameStore.getState().skipRewards();
-          }}
+          onClick={() => skipRewards()}
           className="mx-auto block text-xs text-white/30 hover:text-white/50 underline underline-offset-2 mb-6 transition-colors"
         >
           Saltar evolución → ver recompensas

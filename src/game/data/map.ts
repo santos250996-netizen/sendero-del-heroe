@@ -86,6 +86,7 @@ export function generateMap(layer9IsBoss: boolean = true): GameMap {
         layer: 9,
         column: 0,
         visited: false,
+        cleared: false,
         available: false,
         encounterDifficulty: 10,
       });
@@ -104,6 +105,7 @@ export function generateMap(layer9IsBoss: boolean = true): GameMap {
           layer,
           column: col,
           visited: false,
+          cleared: false,
           available: layer === 0,
           encounterDifficulty: layer + 1,
         });
@@ -152,10 +154,10 @@ export function visitNode(map: GameMap, nodeId: string): GameMap {
   };
 }
 
-/** Check if the map is complete (boss defeated) */
+/** Check if the map is complete (boss cleared) */
 export function isMapComplete(map: GameMap): boolean {
   const bossNode = map.nodes.find(n => n.type === 'boss');
-  return bossNode ? bossNode.visited : false;
+  return bossNode ? bossNode.cleared : false;
 }
 
 // ═══════════════════════════════════════════════════════

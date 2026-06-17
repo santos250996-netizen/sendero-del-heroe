@@ -572,6 +572,10 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
   }));
   newDeck = [...newDeck, ...newCards];
 
+  // Regenerate reward cards based on the NEW class (so rewards match the evolved class)
+  const newRewardPool = getRewardPool(classPath, newDeck);
+  const newRewardCards = generateRewardCards(newRewardPool, 3);
+
   const evolvedState: GameState = {
     ...state,
     phase: 'reward',
@@ -589,6 +593,8 @@ export function chooseEvolution(state: GameState, classPath: ClassPath): GameSta
     deck: newDeck,
     hand: [],
     discard: [],
+    rewardCards: newRewardCards,
+    pickedRewards: [],
     log: [`¡Evolucionaste a ${node.name}!`, ...state.log],
     pendingEvolution: false,
     evolutionChoices: [],
@@ -627,13 +633,23 @@ export function skipRewards(state: GameState): GameState {
 
 // ─── Return to map ────────────────────────────────────────
 export function returnToMap(state: GameState): GameState {
-  const bossDefeated = state.map?.nodes.find(n => n.type === 'boss')?.visited;
-
-  if (bossDefeated) {
-    return { ...state, phase: 'victory', currentNodeId: null };
+  // Mark the current node as cleared (combat won / event resolved / etc.)
+  let newMap = state.map;
+  if (state.map && state.currentNodeId) {
+    newMap = {
+      ...state.map,
+      nodes: state.map.nodes.map(n =>
+        n.id === state.currentNodeId ? { ...n, cleared: true } : n
+      ),
+    };
   }
 
-  return { ...state, phase: 'map', currentNodeId: null };
+  const bossNode = newMap?.nodes.find(n => n.type === 'boss');
+  if (bossNode?.cleared) {
+    return { ...state, map: newMap, phase: 'victory', currentNodeId: null };
+  }
+
+  return { ...state, map: newMap, phase: 'map', currentNodeId: null };
 }
 
 // ─── REST ────────────────────────────────────────────────
@@ -982,7 +998,19 @@ function resolveTreasure(state: GameState): GameState {
 function generateRewardCards(pool: CardDef[], count: number): CardInstance[] {
   if (pool.length === 0) return [];
   const shuffled = shuffle([...pool]);
-  return shuffled.slice(0, count).map(def => ({ uid: uid(), defId: def.id, upgraded: false }));
+  // Try to get `count` unique cards first
+  const unique = shuffled.slice(0, Math.min(count, shuffled.length));
+  // If pool is smaller than count, pad with duplicates from the shuffled pool
+  while (unique.length < count && shuffled.length > 0) {
+    const def = shuffled[Math.floor(Math.random() * shuffled.length)];
+    unique.push(def);
+  }
+  return unique.map(def => ({ uid: uid(), defId: def.id, upgraded: false }));
+}
+
+/** Public wrapper for regenerating reward cards (used when skipping evolution). */
+export function regenerateRewardCards(pool: CardDef[], count: number): CardInstance[] {
+  return generateRewardCards(pool, count);
 }
 
 // ─── Shuffle ──────────────────────────────────────────────

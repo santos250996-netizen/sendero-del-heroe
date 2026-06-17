@@ -64,6 +64,7 @@ export interface MapNode {
   layer: number;       // 0-9
   column: number;      // 0 or 1 (2 columns)
   visited: boolean;
+  cleared: boolean;    // true only after combat/node is successfully completed
   available: boolean;
   // Combat / Elite / Boss nodes
   encounterDifficulty: number;  // scales enemy selection

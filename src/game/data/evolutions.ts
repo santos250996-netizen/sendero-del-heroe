@@ -580,7 +580,7 @@ export const EVOLUTION_TREE: Record<string, EvolutionNode> = {
     description: 'El fuego lo consume y lo regenera. Destrucción que da vida.',
     emoji: '🔥',
     colorClasses: 'from-red-500 to-orange-800',
-    unlockCardIds: 'infierno_purificador' as any extends string ? ['infierno_purificador', 'llamas_eternas'] : ['infierno_purificador', 'llamas_eternas'],
+    unlockCardIds: ['infierno_purificador', 'llamas_eternas'],
   },
 
   // --- Brujo → T3 ---
@@ -884,7 +884,7 @@ export const EVOLUTION_TREE: Record<string, EvolutionNode> = {
     description: 'El elegido por los dioses. Sus combos son divinos.',
     emoji: '🌊',
     colorClasses: 'from-blue-500 to-indigo-800',
-    unlockCardIds: 'combo_avatar' as any extends string ? ['combo_avatar', 'estado_avatar'] : ['combo_avatar', 'estado_avatar'],
+    unlockCardIds: ['combo_avatar', 'estado_avatar'],
   },
 
   // --- Maestro Zen → T3 ---

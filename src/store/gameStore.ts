@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { type GameState, type ClassPath, type RestChoice } from '@/game/types';
 import * as engine from '@/game/engine';
-import { getCardDef, getEffectiveCardDef } from '@/game/data/cards';
+import { getCardDef, getEffectiveCardDef, getRewardPool } from '@/game/data/cards';
 
 interface GameStore extends GameState {
   // Core
@@ -49,6 +49,13 @@ interface GameStore extends GameState {
 export const useGameStore = create<GameStore>((set, get) => {
   // Helper: resolve combat end after player action
   function resolveCombatEnd(cs: GameState, fromEndTurn: boolean = false) {
+    // Idempotency guard: if we're already past the battle phase, do nothing.
+    // This prevents double-firing of handleVictory when multiple state updates
+    // happen in quick succession (React strict mode, animation callbacks, etc.)
+    if (cs.phase !== 'battle') {
+      set({ isAnimating: false });
+      return;
+    }
     const result = engine.checkCombatEnd(cs);
     if (result === 'enemy_dead') {
       const victoryState = engine.handleVictory(cs);
@@ -165,9 +172,20 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   skipRewards: () => {
     const state = get();
-    // If we came from evolution_choice, we need to generate rewards first
+    // If we came from evolution_choice, regenerate rewards based on current
+    // (un-evolved) class so the player still gets a fresh, varied reward screen.
     if (state.phase === 'evolution_choice') {
-      set({ ...state, phase: 'reward' });
+      const allPlayerCards = [...state.deck, ...state.hand, ...state.discard];
+      const rewardPool = getRewardPool(state.player.classPath, allPlayerCards);
+      const newRewardCards = engine.regenerateRewardCards(rewardPool, 3);
+      set({
+        ...state,
+        phase: 'reward',
+        pendingEvolution: false,
+        evolutionChoices: [],
+        rewardCards: newRewardCards,
+        pickedRewards: [],
+      });
       return;
     }
     const newState = engine.skipRewards(state);

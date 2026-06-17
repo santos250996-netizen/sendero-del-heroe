@@ -174,7 +174,7 @@ export const ALL_CARDS: CardDef[] = [
 
   // --- Invocador (from Druida) ---
   { id: 'lobo_espiritual', name: 'Lobo Espiritual', description: '8 daño AOE.', cost: 2, rarity: 'rare', target: 'all_enemies', classPath: 'invocador', tier: 2, aoeDamage: 8, upgradeBonus: aoe5 },
-  { id: 'llamada_naturaleza', description: 'Llamada de la Naturaleza', id: 'llamada_naturaleza', cost: 1, rarity: 'rare', target: 'passive', classPath: 'invocador', tier: 2, strengthBuff: 2, drawCards: 1, upgradeBonus: str2 },
+  { id: 'llamada_naturaleza', name: 'Llamada de la Naturaleza', description: '+2 Fuerza y roba 1.', cost: 1, rarity: 'rare', target: 'passive', classPath: 'invocador', tier: 2, strengthBuff: 2, drawCards: 1, upgradeBonus: str2 },
   { id: 'cuervo', name: 'Cuervo', description: '4 daño + debilita 2 + roba 1.', cost: 1, rarity: 'rare', target: 'enemy', classPath: 'invocador', tier: 2, damage: 4, weaken: 2, drawCards: 1, upgradeBonus: dmg2 },
   { id: 'oso_guardian', name: 'Oso Guardián', description: '8 bloque + cura 3.', cost: 2, rarity: 'rare', target: 'self', classPath: 'invocador', tier: 2, block: 8, heal: 3, upgradeBonus: blk3 },
 
@@ -555,14 +555,34 @@ export function getAvailableCards(classPath: string): CardDef[] {
   return ALL_CARDS.filter(c => lineage.includes(c.classPath));
 }
 
-/** Get reward pool: cards from player's lineage with < 2 copies */
+/**
+ * Get reward pool: cards from player's lineage with < 2 copies.
+ * Fallbacks (in order) to guarantee variety:
+ *   1. < 2 copies, non-curse, non-starter (preferred)
+ *   2. < 3 copies, non-curse, non-starter (allow 3rd copy if pool too small)
+ *   3. Any non-curse card in lineage (including starter duplicates)
+ */
 export function getRewardPool(classPath: string, deck: { defId: string; upgraded: boolean }[]): CardDef[] {
   const available = getAvailableCards(classPath);
   const copyCount = new Map<string, number>();
   for (const card of deck) {
     copyCount.set(card.defId, (copyCount.get(card.defId) || 0) + 1);
   }
-  return available.filter(c => (copyCount.get(c.id) || 0) < 2 && c.rarity !== 'curse' && c.rarity !== 'starter');
+
+  const tier1 = available.filter(c =>
+    (copyCount.get(c.id) || 0) < 2 && c.rarity !== 'curse' && c.rarity !== 'starter'
+  );
+  if (tier1.length >= 3) return tier1;
+
+  // Fallback: allow up to 3 copies
+  const tier2 = available.filter(c =>
+    (copyCount.get(c.id) || 0) < 3 && c.rarity !== 'curse' && c.rarity !== 'starter'
+  );
+  if (tier2.length >= 3) return tier2;
+
+  // Last resort: any non-curse card in lineage (even starter duplicates)
+  const tier3 = available.filter(c => c.rarity !== 'curse');
+  return tier3.length > 0 ? tier3 : available;
 }
 
 /** Get random card from class lineage for shop/event (respects max 2 copies) */
